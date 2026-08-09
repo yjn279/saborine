@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import type { Db } from "./db.js";
 import type { AuthedUser } from "./auth.js";
 import { createAccountRoutes } from "./routes/account.js";
@@ -21,6 +22,10 @@ export function createApp(db: Db) {
   const app = new Hono<AppEnv>();
 
   app.get("/", (c) => c.text("元気です"));
+
+  // アプリ(Expo Web)はAPIと別オリジンで動く。Bearerトークン認証でCookieは使わないため、
+  // 資格情報の共有は必要ない。
+  app.use("/api/*", cors());
 
   app.use("/api/*", async (c, next) => {
     c.set("db", db);
