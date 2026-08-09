@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { formatStoredTimestamp } from "../src/db.js";
-import { createTestDb, registerTestAccount } from "./helpers.js";
+import { createTestDb, registerTestAccount, registerTestPair } from "./helpers.js";
 import {
   NOTIFICATION_KINDS,
   assertNotificationKind,
@@ -351,5 +351,125 @@ describe("予定実行(Cron Triggers)", () => {
     await runScheduled(db, { vapidKeyPair, subject: "mailto:test@example.com" }, MORNING_CATCH_UP_CRON, now);
 
     expect(sendCount).toBe(1);
+  });
+
+  it("おしらせをオフにした相手には、22時〜翌8時の繰り越しぶんが届かない", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+    const partnerId = crypto.randomUUID();
+    await db.execute({
+      sql: "INSERT INTO users (id, pair_id, display_name, secret_hash, notifications_enabled) VALUES (?, ?, ?, ?, 0)",
+      args: [partnerId, account.pairId, "大樹", "dummy-hash"],
+    });
+    await db.execute({ sql: "INSERT INTO affections (user_id, value) VALUES (?, 0)", args: [partnerId] });
+
+    await db.execute({
+      sql: "INSERT INTO chore_logs (id, pair_id, user_id, chore_type, created_at) VALUES (?, ?, ?, ?, ?)",
+      args: [crypto.randomUUID(), account.pairId, account.userId, "ゴミ出し", "2024-01-10 14:00:00"],
+    });
+
+    const subscription = await createFakeSubscription("https://push.example.com/catch-up-off");
+    await db.execute({
+      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
+      args: [crypto.randomUUID(), partnerId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth],
+    });
+
+    let sendCount = 0;
+    globalThis.fetch = (async () => {
+      sendCount += 1;
+      return new Response(null, { status: 201 });
+    }) as typeof fetch;
+
+    const vapidKeyPair = await generateVapidKeyPair();
+    const now = new Date("2024-01-10T23:00:00.000Z");
+    await runScheduled(db, { vapidKeyPair, subject: "mailto:test@example.com" }, MORNING_CATCH_UP_CRON, now);
+
+    expect(sendCount).toBe(0);
+  });
+
+  it("月が変わった直後の予定実行で、当月の成長ポイントが20以上なら進化し、ふたりへ成長のお知らせが届く", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerTestPair(db, "彩花", "大樹");
+    await db.execute({
+      sql: "UPDATE characters SET total_growth_points = 25 WHERE pair_id = ?",
+      args: [a.pairId],
+    });
+
+    // 1月中の5日間、aとbが同じ日に互いへありがとうを送り合う(息ぴったり度が最大になり、調和系で進化する)。
+    for (let day = 1; day <= 5; day += 1) {
+      const createdAt = `2024-01-0${day} 00:00:00`;
+      for (const member of [a, b]) {
+        const choreLogId = crypto.randomUUID();
+        await db.execute({
+          sql: "INSERT INTO chore_logs (id, pair_id, user_id, chore_type, created_at) VALUES (?, ?, ?, ?, ?)",
+          args: [choreLogId, a.pairId, member.userId, "掃除", createdAt],
+        });
+        await db.execute({
+          sql: "INSERT INTO thanks (id, chore_log_id, user_id, created_at) VALUES (?, ?, ?, ?)",
+          args: [crypto.randomUUID(), choreLogId, member.userId, createdAt],
+        });
+      }
+    }
+
+    const subscriptionA = await createFakeSubscription("https://push.example.com/growth-a");
+    const subscriptionB = await createFakeSubscription("https://push.example.com/growth-b");
+    await db.execute({
+      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
+      args: [crypto.randomUUID(), a.userId, subscriptionA.endpoint, subscriptionA.keys.p256dh, subscriptionA.keys.auth],
+    });
+    await db.execute({
+      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
+      args: [crypto.randomUUID(), b.userId, subscriptionB.endpoint, subscriptionB.keys.p256dh, subscriptionB.keys.auth],
+    });
+
+    let sendCount = 0;
+    globalThis.fetch = (async () => {
+      sendCount += 1;
+      return new Response(null, { status: 201 });
+    }) as typeof fetch;
+
+    const vapidKeyPair = await generateVapidKeyPair();
+    // 2024-02-01 00:00 JST = 2024-01-31T15:00:00Z。月が変わった直後の朝の予定実行。
+    const now = new Date("2024-01-31T15:00:00.000Z");
+    await runScheduled(db, { vapidKeyPair, subject: "mailto:test@example.com" }, MORNING_CATCH_UP_CRON, now);
+
+    expect(sendCount).toBe(2);
+
+    const character = await db.execute({
+      sql: "SELECT evolution_stage, evolution_lineage, total_growth_points FROM characters WHERE pair_id = ?",
+      args: [a.pairId],
+    });
+    expect(Number(character.rows[0]?.evolution_stage)).toBe(1);
+    expect(String(character.rows[0]?.evolution_lineage)).toBe("harmony");
+    // 進化した月ぶんの成長ポイントは消費され、次のサイクルは0から始まる。
+    expect(Number(character.rows[0]?.total_growth_points)).toBe(0);
+  });
+
+  it("当月の成長ポイントが20未満なら進化せず、成長のお知らせも届かない", async () => {
+    const db = await createTestDb();
+    const { a } = await registerTestPair(db, "彩花", "大樹");
+    await db.execute({
+      sql: "UPDATE characters SET total_growth_points = 5 WHERE pair_id = ?",
+      args: [a.pairId],
+    });
+
+    let sendCount = 0;
+    globalThis.fetch = (async () => {
+      sendCount += 1;
+      return new Response(null, { status: 201 });
+    }) as typeof fetch;
+
+    const vapidKeyPair = await generateVapidKeyPair();
+    const now = new Date("2024-01-31T15:00:00.000Z");
+    await runScheduled(db, { vapidKeyPair, subject: "mailto:test@example.com" }, MORNING_CATCH_UP_CRON, now);
+
+    expect(sendCount).toBe(0);
+    const character = await db.execute({
+      sql: "SELECT evolution_stage, total_growth_points FROM characters WHERE pair_id = ?",
+      args: [a.pairId],
+    });
+    expect(Number(character.rows[0]?.evolution_stage)).toBe(0);
+    // 進化しなかった月の成長ポイントは、置き換えられずそのまま翌月へ持ち越される。
+    expect(Number(character.rows[0]?.total_growth_points)).toBe(5);
   });
 });

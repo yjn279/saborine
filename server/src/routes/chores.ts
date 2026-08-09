@@ -1,10 +1,9 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.js";
 import { authMiddleware } from "../auth.js";
-import { formatStoredTimestamp } from "../db.js";
+import { parseStoredTimestamp } from "../db.js";
 import { CHORE_PRESETS, orderPresetsByRecentUse } from "../domain/presets.js";
-import { calcGrowthPoints } from "../domain/growth.js";
-import { getWeekRange } from "../domain/week.js";
+import { recalculateGrowthPoints } from "../growth-ledger.js";
 
 const CHORE_TYPE_MAX_LENGTH = 30;
 
@@ -109,27 +108,13 @@ export function createChoreRoutes() {
       "write",
     );
 
-    // その週(日曜21時JST区切り)に、ペアの記録それぞれへ届いたありがとうの数から成長ポイントを求め直す。
-    const weekRange = getWeekRange(new Date());
-    const thanksInPairResult = await db.execute({
-      sql: `SELECT chore_logs.user_id AS recipient
-            FROM thanks
-            JOIN chore_logs ON thanks.chore_log_id = chore_logs.id
-            WHERE chore_logs.pair_id = ? AND thanks.created_at >= ? AND thanks.created_at < ?`,
-      args: [user.pairId, formatStoredTimestamp(weekRange.start), formatStoredTimestamp(weekRange.end)],
+    // 直近の進化(または結成)以降の当月ぶんの成長ポイントを求め直す(server/src/growth-ledger.ts)。
+    const characterResult = await db.execute({
+      sql: "SELECT growth_cycle_started_at FROM characters WHERE pair_id = ?",
+      args: [user.pairId],
     });
-    const countsByRecipient = new Map<string, number>();
-    for (const row of thanksInPairResult.rows) {
-      const recipient = String(row.recipient);
-      countsByRecipient.set(recipient, (countsByRecipient.get(recipient) ?? 0) + 1);
-    }
-    const [a, b] = [...countsByRecipient.values()];
-    const growthPoints = calcGrowthPoints(a ?? 0, b ?? 0);
-
-    await db.execute({
-      sql: "UPDATE characters SET total_growth_points = ? WHERE pair_id = ?",
-      args: [growthPoints, user.pairId],
-    });
+    const cycleStartedAt = parseStoredTimestamp(characterResult.rows[0]?.growth_cycle_started_at);
+    await recalculateGrowthPoints(db, user.pairId, cycleStartedAt, new Date());
 
     const created = await db.execute({
       sql: "SELECT created_at FROM thanks WHERE id = ?",

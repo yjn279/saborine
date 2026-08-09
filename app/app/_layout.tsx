@@ -20,17 +20,29 @@ export default function RootLayout() {
       setChecked(true);
       return;
     }
-    loadIdentity().then((identity) => {
-      if (!active) {
-        return;
-      }
-      if (!identity && pathname !== ONBOARDING_PATH) {
-        router.replace(ONBOARDING_PATH);
-      } else if (identity && pathname === ONBOARDING_PATH) {
-        router.replace("/");
-      }
-      setChecked(true);
-    });
+    loadIdentity()
+      .then((identity) => {
+        if (!active) {
+          return;
+        }
+        if (!identity && pathname !== ONBOARDING_PATH) {
+          router.replace(ONBOARDING_PATH);
+        } else if (identity && pathname === ONBOARDING_PATH) {
+          router.replace("/");
+        }
+        setChecked(true);
+      })
+      .catch((error: unknown) => {
+        // 保存領域が読めない場合も、無反応のまま固まらせず、はじめかた画面へ送り返す。
+        console.error("身分証の読み込みに失敗しました", error);
+        if (!active) {
+          return;
+        }
+        if (pathname !== ONBOARDING_PATH) {
+          router.replace(ONBOARDING_PATH);
+        }
+        setChecked(true);
+      });
     return () => {
       active = false;
     };

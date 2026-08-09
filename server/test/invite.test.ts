@@ -140,6 +140,39 @@ describe("招待の受諾", () => {
     expect(users.rows).toHaveLength(2);
   });
 
+  it("同時に2人が受諾しても、3人目にはなれない", async () => {
+    const db = await createTestDb();
+    const inviter = await registerTestAccount(db, "彩花");
+    const letterRes = await createApp(db).request("/api/invite/letter", {
+      headers: { Authorization: inviter.authorization },
+    });
+    const { token } = (await letterRes.json()) as { token: string };
+
+    const second = createTestCredential();
+    const third = createTestCredential();
+    const [secondRes, thirdRes] = await Promise.all([
+      createApp(db).request(`/api/invite/${token}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: "大樹", userId: second.userId, secret: second.secret }),
+      }),
+      createApp(db).request(`/api/invite/${token}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: "みさき", userId: third.userId, secret: third.secret }),
+      }),
+    ]);
+
+    const statuses = [secondRes.status, thirdRes.status].sort();
+    expect(statuses).toEqual([201, 409]);
+
+    const users = await db.execute({
+      sql: "SELECT id FROM users WHERE pair_id = ?",
+      args: [inviter.pairId],
+    });
+    expect(users.rows).toHaveLength(2);
+  });
+
   it("存在しないトークンでの受諾は404になる", async () => {
     const db = await createTestDb();
     const credential = createTestCredential();

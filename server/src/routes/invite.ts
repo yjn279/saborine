@@ -101,12 +101,19 @@ export function createInviteRoutes() {
 
     const secretHash = await hashSecret(secret);
 
+    // 上のCOUNTでの確認とこのINSERTの間に同時受諾が割り込む余地があるため、人数の
+    // 確認を同じ1文の中に埋め込み、3人目が紛れ込まないようにする(挿入0件なら競合負け)。
+    const insertResult = await db.execute({
+      sql: `INSERT INTO users (id, pair_id, display_name, secret_hash)
+            SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM users WHERE pair_id = ?) < ?`,
+      args: [userId, pairId, displayName, secretHash, pairId, PAIR_MAX_MEMBERS],
+    });
+    if (insertResult.rowsAffected === 0) {
+      return c.json({ error: "この招待はすでに使われています" }, 409);
+    }
+
     await db.batch(
       [
-        {
-          sql: "INSERT INTO users (id, pair_id, display_name, secret_hash) VALUES (?, ?, ?, ?)",
-          args: [userId, pairId, displayName, secretHash],
-        },
         {
           sql: "INSERT INTO affections (user_id, value) VALUES (?, 0)",
           args: [userId],

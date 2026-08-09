@@ -30,3 +30,38 @@ export function getWeekRange(at: Date): WeekRange {
   const start = getWeekStart(at);
   return { start, end: new Date(start.getTime() + WEEK_MS) };
 }
+
+export interface MonthRange {
+  start: Date;
+  end: Date;
+  daysInMonth: number;
+}
+
+// 月の区切り = 日本時間のカレンダー月(1日0:00〜翌月1日0:00)。進化判定の「当月」はこの区切りを使う。
+export function getMonthRange(at: Date): MonthRange {
+  const jst = new Date(at.getTime() + JST_OFFSET_MS);
+  const year = jst.getUTCFullYear();
+  const month = jst.getUTCMonth();
+  const startJstMs = Date.UTC(year, month, 1);
+  const endJstMs = Date.UTC(year, month + 1, 1);
+  return {
+    start: new Date(startJstMs - JST_OFFSET_MS),
+    end: new Date(endJstMs - JST_OFFSET_MS),
+    daysInMonth: Math.round((endJstMs - startJstMs) / DAY_MS),
+  };
+}
+
+// 直前に閉じた月の範囲。月が変わった直後の予定実行(scheduled.ts)の進化判定から使う。
+export function getPreviousMonthRange(at: Date): MonthRange {
+  return getMonthRange(new Date(getMonthRange(at).start.getTime() - 1));
+}
+
+// 指定した時刻が(日本時間で)月の最初の日かどうか。月末判定の予定実行を、月が変わった日にだけ動かす。
+export function isFirstDayOfMonthJst(at: Date): boolean {
+  return new Date(at.getTime() + JST_OFFSET_MS).getUTCDate() === 1;
+}
+
+// 指定した時刻の日本時間での暦日("YYYY-MM-DD")。進化判定で記録・ありがとうを日単位で数えるのに使う。
+export function jstCalendarDay(at: Date): string {
+  return new Date(at.getTime() + JST_OFFSET_MS).toISOString().slice(0, 10);
+}

@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_pair_id ON users (pair_id);
 
 -- キャラクター: ペアに1体
+-- total_growth_pointsは、growth_cycle_started_at以降に積み上がった当月ぶんの成長ポイント
+-- (docs/mvp.md:145)。進化するたびに0へ戻り、growth_cycle_started_atも進化した時点へ進む。
 CREATE TABLE IF NOT EXISTS characters (
   id TEXT PRIMARY KEY,
   pair_id TEXT NOT NULL UNIQUE REFERENCES pairs (id),
@@ -26,6 +28,7 @@ CREATE TABLE IF NOT EXISTS characters (
   total_growth_points INTEGER NOT NULL DEFAULT 0,
   evolution_stage INTEGER NOT NULL DEFAULT 0,
   evolution_lineage TEXT,
+  growth_cycle_started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

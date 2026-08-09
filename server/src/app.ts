@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { LibsqlError } from "@libsql/client/web";
 import type { Db } from "./db.js";
 import type { AuthedUser } from "./auth.js";
 import { createAccountRoutes } from "./routes/account.js";
@@ -42,6 +43,17 @@ export function createApp(db: Db) {
   app.route("/api/push", createPushRoutes());
   app.route("/api/settings", createSettingsRoutes());
   app.route("/api/pair", createPairRoutes());
+
+  // check-then-actの間に起きた競合(同時に届いたありがとう・週次カード生成等)は、
+  // データベースの一意制約違反として現れる。エラーを握りつぶさず、意図どおりの
+  // 409として表面化させる。それ以外の失敗は代替値を返さず500のまま表面化させる。
+  app.onError((err, c) => {
+    if (err instanceof LibsqlError && err.code.startsWith("SQLITE_CONSTRAINT")) {
+      return c.json({ error: "すでに処理されています" }, 409);
+    }
+    console.error(err);
+    return c.json({ error: "サーバーでエラーが発生しました" }, 500);
+  });
 
   return app;
 }

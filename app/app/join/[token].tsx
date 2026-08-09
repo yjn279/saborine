@@ -69,26 +69,40 @@ export default function Join() {
     }
     setSubmitting(true);
     setJoinError(null);
+    const identity = createIdentity();
+
     try {
-      const identity = createIdentity();
       await acceptInvite(token, {
         displayName: trimmedName,
         userId: identity.userId,
         secret: identity.secret,
       });
-      await saveIdentity(identity);
-      setJoinedIdentity(identity);
-      try {
-        const state = await fetchHomeState(identity);
-        setHomeState(state);
-      } catch {
-        // ホームの状態が取れなくても、登録自体は成功しているので先へ進める。
-      }
     } catch (error) {
       setJoinError(error instanceof ApiError ? error.message : "なかまに なれませんでした");
-    } finally {
       setSubmitting(false);
+      return;
     }
+
+    // 受諾自体はサーバーで成功しているため、保存の失敗を「なかまになれなかった」とは
+    // 区別する。保存できないまま先へ進むと合言葉を失って孤立するため、ここにとどめる。
+    try {
+      await saveIdentity(identity);
+    } catch {
+      setJoinError(
+        "なかまには なれたけど、このたんまつに ほぞんできなかったよ。もういちど おためしください",
+      );
+      setSubmitting(false);
+      return;
+    }
+
+    setJoinedIdentity(identity);
+    try {
+      const state = await fetchHomeState(identity);
+      setHomeState(state);
+    } catch {
+      // ホームの状態が取れなくても、登録自体は成功しているので先へ進める。
+    }
+    setSubmitting(false);
   };
 
   const handleThanks = async () => {

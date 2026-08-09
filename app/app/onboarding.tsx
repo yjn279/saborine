@@ -31,8 +31,9 @@ export default function Onboarding() {
   const handleSubmit = async () => {
     setSubmitting(true);
     setErrorMessage(null);
+    const newIdentity = createIdentity();
+
     try {
-      const newIdentity = createIdentity();
       const request: RegisterAccountRequest = {
         displayName: trimmedName,
         userId: newIdentity.userId,
@@ -42,14 +43,27 @@ export default function Onboarding() {
         method: "POST",
         body: request,
       });
-      await saveIdentity(newIdentity);
-      setIdentity(newIdentity);
-      setStep("welcome");
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "とうろくに しっぱいしました");
-    } finally {
       setSubmitting(false);
+      return;
     }
+
+    // 登録自体はサーバーで成功しているため、保存の失敗を「登録失敗」として扱わない。
+    // 保存できないまま次へ進むと合言葉を失って孤立するため、区別してこの場にとどめる。
+    try {
+      await saveIdentity(newIdentity);
+    } catch {
+      setErrorMessage(
+        "とうろくは できたけど、このたんまつに ほぞんできなかったよ。もういちど おためしください",
+      );
+      setSubmitting(false);
+      return;
+    }
+
+    setIdentity(newIdentity);
+    setStep("welcome");
+    setSubmitting(false);
   };
 
   useEffect(() => {

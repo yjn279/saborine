@@ -5,3 +5,14 @@
 export function calcGrowthPoints(a: number, b: number): number {
   return a + b + 2 * Math.min(a, b);
 }
+
+// 複数の週にまたがる成長ポイントを合算する。「当月の成長ポイント」(進化判定、docs/mvp.md:145)は、
+// 週ごとに求めた成長ポイントの単純な合計として積み上がる(server/src/growth-ledger.ts)。
+export interface WeeklyThanksCounts {
+  a: number;
+  b: number;
+}
+
+export function sumWeeklyGrowthPoints(weeks: readonly WeeklyThanksCounts[]): number {
+  return weeks.reduce((total, week) => total + calcGrowthPoints(week.a, week.b), 0);
+}

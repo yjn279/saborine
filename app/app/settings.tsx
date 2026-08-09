@@ -20,6 +20,7 @@ import {
 import { clearIdentity } from "../src/auth/identity";
 import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
+import { subscribeToPush, unsubscribeFromPush } from "../src/push/subscribe";
 import { commonStyles } from "../src/styles/common";
 
 const CHARACTER_NAME_MAX_LENGTH = 20;
@@ -79,8 +80,17 @@ export default function Settings() {
     } catch (error) {
       setSettings({ ...settings, notificationsEnabled: previous });
       setActionError(error instanceof ApiError ? error.message : "へんこうに しっぱいしました");
-    } finally {
       setSavingNotifications(false);
+      return;
+    }
+    setSavingNotifications(false);
+
+    // お知らせの設定に合わせて、この端末の購読も切り替える。購読側の失敗(未対応環境・
+    // 許可なし等)は、すでに保存済みの設定を巻き戻す理由にはしない。
+    if (next) {
+      await subscribeToPush(identity);
+    } else {
+      await unsubscribeFromPush(identity).catch(() => undefined);
     }
   };
 
