@@ -3,6 +3,8 @@ import type { Db } from "./db.js";
 import type { AuthedUser } from "./auth.js";
 import { createAccountRoutes } from "./routes/account.js";
 import { createInviteRoutes } from "./routes/invite.js";
+import { createChoreRoutes } from "./routes/chores.js";
+import { createHomeRoutes } from "./routes/home.js";
 
 export type AppEnv = {
   Variables: {
@@ -25,6 +27,8 @@ export function createApp(db: Db) {
 
   app.route("/api/account", createAccountRoutes());
   app.route("/api/invite", createInviteRoutes());
+  app.route("/api/chores", createChoreRoutes());
+  app.route("/api/home", createHomeRoutes());
 
   return app;
 }
