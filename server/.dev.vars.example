@@ -1,0 +1,13 @@
+# このファイルをコピーして .dev.vars を作る(.dev.vars はコミットしない)。
+# 本番はコミットせず、`wrangler secret put <名前>` でシークレットとして登録する。
+
+# ローカルのデータベース(`turso dev -f <ファイル> -p 8080` が開くHTTP入口)。
+DB_URL=http://127.0.0.1:8080
+
+# Web PushのVAPID鍵(RFC 8292)。`npx web-push generate-vapid-keys` で生成できる
+# (base64urlの65バイト公開鍵・32バイト秘密鍵という、ここで使うのと同じ形式で出力される)。
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+
+# Web Pushサーバーが送信元に問い合わせるときの連絡先。mailto:から始める。
+VAPID_SUBJECT=mailto:example@example.com

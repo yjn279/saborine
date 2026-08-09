@@ -6,6 +6,7 @@ import { createInviteRoutes } from "./routes/invite.js";
 import { createChoreRoutes } from "./routes/chores.js";
 import { createHomeRoutes } from "./routes/home.js";
 import { createWeeklyCardRoutes } from "./routes/weekly-card.js";
+import { createPushRoutes } from "./routes/push.js";
 
 export type AppEnv = {
   Variables: {
@@ -31,6 +32,7 @@ export function createApp(db: Db) {
   app.route("/api/chores", createChoreRoutes());
   app.route("/api/home", createHomeRoutes());
   app.route("/api/weekly-card", createWeeklyCardRoutes());
+  app.route("/api/push", createPushRoutes());
 
   return app;
 }

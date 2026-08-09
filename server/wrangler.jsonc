@@ -5,5 +5,9 @@
   "compatibility_date": "2026-08-08",
   "observability": {
     "enabled": true
+  },
+  "triggers": {
+    // 週次カード: 日曜21:00 JST(12:00 UTC)。繰り越しぶんの記録・ありがとう: 翌8:00 JST(23:00 UTC)。
+    "crons": ["0 12 * * 0", "0 23 * * *"]
   }
 }
