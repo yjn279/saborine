@@ -208,4 +208,42 @@ describe("アカウント削除", () => {
     });
     expect(characters.rows).toHaveLength(1);
   });
+
+  it("削除すると古い招待リンクが無効になり、元パートナーや第三者が合意なく入り込めない", async () => {
+    const db = await createTestDb();
+    const inviter = await registerTestAccount(db, "彩花");
+    const oldLetterRes = await createApp(db).request("/api/invite/letter", {
+      headers: { Authorization: inviter.authorization },
+    });
+    const { token: oldToken } = (await oldLetterRes.json()) as { token: string };
+    const invitee = createTestCredential();
+    await createApp(db).request(`/api/invite/${oldToken}/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: "大樹", userId: invitee.userId, secret: invitee.secret }),
+    });
+
+    await createApp(db).request("/api/account", {
+      method: "DELETE",
+      headers: { Authorization: inviter.authorization },
+    });
+
+    const previewRes = await createApp(db).request(`/api/invite/${oldToken}`);
+    expect(previewRes.status).toBe(404);
+
+    const thirdParty = createTestCredential();
+    const acceptRes = await createApp(db).request(`/api/invite/${oldToken}/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: "だれか", userId: thirdParty.userId, secret: thirdParty.secret }),
+    });
+    expect(acceptRes.status).toBe(404);
+
+    // 残った側が新しい手紙を求めれば、新しいリンクで別の人を招待し直せる。
+    const newLetterRes = await createApp(db).request("/api/invite/letter", {
+      headers: { Authorization: invitee.authorization },
+    });
+    const { token: newToken } = (await newLetterRes.json()) as { token: string };
+    expect(newToken).not.toBe(oldToken);
+  });
 });

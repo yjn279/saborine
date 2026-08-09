@@ -21,6 +21,17 @@ interface RequestOptions {
   identity?: Identity;
 }
 
+// 401(=このBearerトークンではもう認証できない。ペア解除やアカウント削除で、
+// 相手側の身分証がその場で失効した場合など)を検知したときに1度だけ呼ぶ。
+// useIdentity.tsが画面の表示中はここに自分自身を登録し、はじめかた画面へ
+// 送り返す。ここを唯一の入口にすることで、どの画面のどの通信が401を受けても
+// 同じ場所に復帰できる。
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
 function isErrorBody(value: unknown): value is { error: string } {
   return (
     typeof value === "object" &&
@@ -56,6 +67,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const message = isErrorBody(payload) ? payload.error : "サーバーとの つうしんに しっぱいしました";
+    if (response.status === 401 && options.identity) {
+      unauthorizedHandler?.();
+    }
     throw new ApiError(message, response.status);
   }
   return payload as T;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
-import { loadIdentity, type Identity } from "./identity";
+import { setUnauthorizedHandler } from "../api/client";
+import { clearIdentity, loadIdentity, type Identity } from "./identity";
 
 // 保存済みの身分証を読み込む。まだ登録していなければ、はじめかた画面へ送り返す。
 // どの画面も、この結果が届いてから初めてサーバーへ問い合わせる。
@@ -32,6 +33,17 @@ export function useIdentity(): Identity | null {
     return () => {
       active = false;
     };
+  }, [router]);
+
+  // この画面が生きている間、通信が401(=もうこの身分証では認証できない)を受けたら
+  // ここで受け止める。ペア解除は実行した本人の意思だけで完結し、相手には通知しない
+  // ため、相手側はポーリング等の通信が401になって初めてそれを知る。端末の身分証を
+  // 消し、穏やかな文言とともにはじめかた画面へ送り返して復帰できるようにする。
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearIdentity().finally(() => router.replace("/onboarding?reason=unpaired"));
+    });
+    return () => setUnauthorizedHandler(null);
   }, [router]);
 
   return identity;

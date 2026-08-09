@@ -73,16 +73,20 @@ export function createAccountRoutes() {
   // アカウント削除。自分ぶんの身分証・なつき度・お知らせ購読だけを消し、以後は同じ
   // Bearerトークンで何もできなくする。ペアとサボリーヌはひとり期間と同じ形で相手の
   // もとに残るため(docs/mvp.md:17)、この入口はペアそのものは解かない(ペア解除は
-  // routes/pair.ts が別に担う)。
+  // routes/pair.ts が別に担う)。招待リンクの合言葉(invite_token)は新しいものに
+  // 差し替える。差し替えないと、離脱前に見た誰か(元パートナー自身や、以前リンクを
+  // 見ただけの第三者)が、残った側の同意なく古いリンクからペアへ入り込めてしまう。
   routes.delete("/", authMiddleware, async (c) => {
     const user = c.get("user");
     const db = c.get("db");
+    const newInviteToken = crypto.randomUUID();
 
     await db.batch(
       [
         { sql: "DELETE FROM push_subscriptions WHERE user_id = ?", args: [user.id] },
         { sql: "DELETE FROM affections WHERE user_id = ?", args: [user.id] },
         { sql: "DELETE FROM users WHERE id = ?", args: [user.id] },
+        { sql: "UPDATE pairs SET invite_token = ? WHERE id = ?", args: [newInviteToken, user.pairId] },
       ],
       "write",
     );

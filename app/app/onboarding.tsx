@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiRequest, ApiError } from "../src/api/client";
 import type { RegisterAccountRequest, RegisterAccountResponse } from "../src/api/types";
 import { createIdentity, saveIdentity, type Identity } from "../src/auth/identity";
@@ -18,6 +18,7 @@ type Step = "form" | "welcome" | "install";
 // 進まず、その場でメッセージを見せる。
 export default function Onboarding() {
   const router = useRouter();
+  const { reason } = useLocalSearchParams<{ reason?: string }>();
   const [step, setStep] = useState<Step>("form");
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -116,6 +117,11 @@ export default function Onboarding() {
       <Saborine pose="normal" />
       <Text style={styles.title}>サボリーヌが まっているよ</Text>
       <Text style={styles.subtitle}>あなたの おなまえを おしえてね</Text>
+      {reason === "unpaired" ? (
+        <Text style={commonStyles.error}>
+          なかまが いなくなってしまったみたい。もういちど、はじめから とうろくしてね
+        </Text>
+      ) : null}
       <TextInput
         style={styles.input}
         value={displayName}
