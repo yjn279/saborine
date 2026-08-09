@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "saborine-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-08",
+  "observability": {
+    "enabled": true
+  }
+}

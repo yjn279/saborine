@@ -1,0 +1,17 @@
+node_modules/
+
+# app (Expo)
+app/.expo/
+app/dist/
+app/web-build/
+app/expo-env.d.ts
+app/*.log
+
+# server (Cloudflare Workers)
+server/.wrangler/
+server/.dev.vars
+server/*.db
+server/*.db-*
+
+# editors / OS
+.DS_Store
