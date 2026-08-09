@@ -1,0 +1,207 @@
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
+import { ApiError } from "../src/api/client";
+import { fetchChorePresets, recordChore } from "../src/api/home";
+import { loadIdentity, type Identity } from "../src/auth/identity";
+import { Saborine } from "../src/components/saborine/Saborine";
+
+const FREE_TEXT_MAX_LENGTH = 30;
+
+// 記録シート。ホームの記録ボタンと、サボリーヌ自身をタップしたときの両方から開く
+// (docs/mvp.md:53)。プリセット6種は最近使った順に並び、1タップで記録が完了する。
+// 写真・詳細・相手の承認は求めない。
+export default function Record() {
+  const router = useRouter();
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [presets, setPresets] = useState<string[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [freeText, setFreeText] = useState("");
+  const [recordingChoreType, setRecordingChoreType] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const loaded = await loadIdentity();
+      if (!active) {
+        return;
+      }
+      if (!loaded) {
+        router.replace("/onboarding");
+        return;
+      }
+      setIdentity(loaded);
+      try {
+        const response = await fetchChorePresets(loaded);
+        if (active) {
+          setPresets(response.presets);
+        }
+      } catch (error) {
+        if (active) {
+          setLoadError(error instanceof ApiError ? error.message : "よみこみに しっぱいしました");
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [router]);
+
+  const handleRecord = async (choreType: string) => {
+    const trimmed = choreType.trim();
+    if (!trimmed || !identity || recordingChoreType) {
+      return;
+    }
+    setRecordingChoreType(trimmed);
+    setErrorMessage(null);
+    try {
+      await recordChore(identity, trimmed);
+      router.back();
+    } catch (error) {
+      setErrorMessage(error instanceof ApiError ? error.message : "きろくに しっぱいしました");
+      setRecordingChoreType(null);
+    }
+  };
+
+  const trimmedFreeText = freeText.trim();
+
+  return (
+    <View style={styles.container}>
+      <Saborine pose="normal" size={110} />
+      <Text style={styles.title}>なにか してくれた?</Text>
+
+      {loadError ? <Text style={styles.error}>{loadError}</Text> : null}
+      {!loadError && !presets ? <ActivityIndicator /> : null}
+
+      {presets ? (
+        <View style={styles.presetGrid}>
+          {presets.map((preset) => (
+            <Pressable
+              key={preset}
+              style={[styles.presetButton, recordingChoreType !== null && styles.disabled]}
+              onPress={() => handleRecord(preset)}
+              disabled={recordingChoreType !== null}
+            >
+              {recordingChoreType === preset ? (
+                <ActivityIndicator color="#6b5237" />
+              ) : (
+                <Text style={styles.presetText}>{preset}</Text>
+              )}
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.freeTextRow}>
+        <TextInput
+          style={styles.freeTextInput}
+          value={freeText}
+          onChangeText={setFreeText}
+          placeholder="ほかに したこと"
+          maxLength={FREE_TEXT_MAX_LENGTH}
+          editable={recordingChoreType === null}
+        />
+        <Pressable
+          style={[
+            styles.freeTextButton,
+            (!trimmedFreeText || recordingChoreType !== null) && styles.disabled,
+          ]}
+          onPress={() => handleRecord(freeText)}
+          disabled={!trimmedFreeText || recordingChoreType !== null}
+        >
+          {recordingChoreType === trimmedFreeText && trimmedFreeText ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.freeTextButtonText}>きろく</Text>
+          )}
+        </Pressable>
+      </View>
+
+      {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+
+      <Pressable style={styles.closeButton} onPress={() => router.back()}>
+        <Text style={styles.closeButtonText}>とじる</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    padding: 24,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+  },
+  presetGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 10,
+    maxWidth: 360,
+  },
+  presetButton: {
+    backgroundColor: "#fdf1de",
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    minWidth: 96,
+    alignItems: "center",
+  },
+  presetText: {
+    color: "#6b5237",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  freeTextRow: {
+    flexDirection: "row",
+    gap: 8,
+    width: "100%",
+    maxWidth: 360,
+  },
+  freeTextInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  freeTextButton: {
+    backgroundColor: "#f4a261",
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  freeTextButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  error: {
+    color: "#c0392b",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  closeButton: {
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  closeButtonText: {
+    color: "#999",
+    fontSize: 14,
+  },
+});
