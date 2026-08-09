@@ -9,3 +9,9 @@ export type Db = Client;
 export function createDb(config: Config): Db {
   return createClient(config);
 }
+
+// SQLiteのCURRENT_TIMESTAMPは"YYYY-MM-DD HH:MM:SS"(UTC、区切りは空白)で保存される。
+// JSのDateとして扱えるよう、T区切り+Zサフィックスの形に直す。
+export function parseStoredTimestamp(value: unknown): Date {
+  return new Date(`${String(value).replace(" ", "T")}Z`);
+}

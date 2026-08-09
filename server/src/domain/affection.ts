@@ -10,11 +10,6 @@ const GESTURE_THRESHOLDS: ReadonlyArray<{ value: number; gesture: AffectionGestu
   { value: 100, gesture: "specialGesture" },
 ];
 
-// 記録またはありがとう送信のたびに呼ぶ。+1するだけで、減らす操作は存在しない。
-export function incrementAffection(current: number): number {
-  return current + 1;
-}
-
 // 累計値から、その時点で解放済みの仕草を古い順に返す。
 export function unlockedGestures(value: number): AffectionGesture[] {
   return GESTURE_THRESHOLDS.filter((threshold) => value >= threshold.value).map(

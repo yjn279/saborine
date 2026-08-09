@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.js";
 import { authMiddleware } from "../auth.js";
+import { parseStoredTimestamp } from "../db.js";
 import { calcBalanceGauge } from "../domain/gauge.js";
 import { unlockedGestures } from "../domain/affection.js";
 import { isSloppyMode } from "../domain/mood.js";
@@ -8,12 +9,6 @@ import { pickLine } from "../domain/lines.js";
 
 const GAUGE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const RECENT_RECORD_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-// SQLiteのCURRENT_TIMESTAMPは"YYYY-MM-DD HH:MM:SS"(UTC、区切りは空白)で保存される。
-// JSのDateとして扱えるよう、T区切り+Zサフィックスの形に直す。
-function parseStoredTimestamp(value: unknown): Date {
-  return new Date(`${String(value).replace(" ", "T")}Z`);
-}
 
 export function createHomeRoutes() {
   const routes = new Hono<AppEnv>();
@@ -26,7 +21,7 @@ export function createHomeRoutes() {
 
     const [characterResult, affectionResult, partnerResult, chorePairResult] = await Promise.all([
       db.execute({
-        sql: "SELECT name, evolution_stage, evolution_lineage FROM characters WHERE pair_id = ?",
+        sql: "SELECT name, evolution_stage, evolution_lineage, created_at FROM characters WHERE pair_id = ?",
         args: [user.pairId],
       }),
       db.execute({
@@ -49,6 +44,10 @@ export function createHomeRoutes() {
     const myAffectionValue = Number(affectionResult.rows[0]?.value ?? 0);
     const partner = partnerResult.rows[0];
     const partnerId = partner ? String(partner.id) : null;
+    // サボリーヌを迎えた瞬間(=だらしなモードの起算点)。まだ一度も記録が無い側の
+    // 「最後の記録時刻」は、この時刻で代用する。0ならnullではなく起算点そのものを
+    // 使うことで、迎えたばかりのサボリーヌが開口一番だらしない姿にならないようにする。
+    const characterCreatedAt = character ? parseStoredTimestamp(character.created_at) : now;
 
     // ユーザーごとの最後の記録時刻(だらしなモード判定用)と、相手の直近の記録を、記録一覧から求める。
     // 行はcreated_at, rowidの昇順で来るため、同じ秒でも最後に読んだ行が最新になる。
@@ -72,7 +71,11 @@ export function createHomeRoutes() {
       }
     }
 
-    const isSloppy = isSloppyMode(myLastRecordAt, partnerLastRecordAt, now);
+    const isSloppy = isSloppyMode(
+      myLastRecordAt ?? characterCreatedAt,
+      partnerLastRecordAt ?? characterCreatedAt,
+      now,
+    );
 
     // 息ぴったりゲージ: 直近7日にペアの各記録へ届いたありがとうの数から、割合だけを求める。
     const gaugeWindowStart = new Date(now.getTime() - GAUGE_WINDOW_MS);

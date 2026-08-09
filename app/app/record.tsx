@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { useRouter } from "expo-router";
 import { ApiError } from "../src/api/client";
 import { fetchChorePresets, recordChore } from "../src/api/home";
-import { loadIdentity, type Identity } from "../src/auth/identity";
+import { useIdentity } from "../src/auth/useIdentity";
 import { Saborine } from "../src/components/saborine/Saborine";
 
 const FREE_TEXT_MAX_LENGTH = 30;
@@ -13,7 +13,7 @@ const FREE_TEXT_MAX_LENGTH = 30;
 // 写真・詳細・相手の承認は求めない。
 export default function Record() {
   const router = useRouter();
-  const [identity, setIdentity] = useState<Identity | null>(null);
+  const identity = useIdentity();
   const [presets, setPresets] = useState<string[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [freeText, setFreeText] = useState("");
@@ -21,32 +21,25 @@ export default function Record() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!identity) {
+      return;
+    }
     let active = true;
-    (async () => {
-      const loaded = await loadIdentity();
-      if (!active) {
-        return;
-      }
-      if (!loaded) {
-        router.replace("/onboarding");
-        return;
-      }
-      setIdentity(loaded);
-      try {
-        const response = await fetchChorePresets(loaded);
+    fetchChorePresets(identity)
+      .then((response) => {
         if (active) {
           setPresets(response.presets);
         }
-      } catch (error) {
+      })
+      .catch((error) => {
         if (active) {
           setLoadError(error instanceof ApiError ? error.message : "よみこみに しっぱいしました");
         }
-      }
-    })();
+      });
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [identity]);
 
   const handleRecord = async (choreType: string) => {
     const trimmed = choreType.trim();

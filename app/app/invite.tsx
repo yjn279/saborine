@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
 import { ApiError } from "../src/api/client";
 import { fetchInviteLetter, type InviteLetter } from "../src/api/invite";
-import { loadIdentity, type Identity } from "../src/auth/identity";
+import { useIdentity } from "../src/auth/useIdentity";
 import { LetterCard } from "../src/components/LetterCard";
 
 // 招待カードの再提示は2回まで(初回記録の直後・3日後を想定)。それ以上はアプリから
@@ -35,7 +35,7 @@ async function bumpReminderCount(current: number): Promise<void> {
 // 受諾したかの状態はサーバーが返さないため、この画面にも一切表示しない。
 export default function Invite() {
   const router = useRouter();
-  const [identity, setIdentity] = useState<Identity | null>(null);
+  const identity = useIdentity();
   const [letter, setLetter] = useState<InviteLetter | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -43,18 +43,11 @@ export default function Invite() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    if (!identity) {
+      return;
+    }
     let active = true;
     (async () => {
-      const loadedIdentity = await loadIdentity();
-      if (!active) {
-        return;
-      }
-      if (!loadedIdentity) {
-        router.replace("/onboarding");
-        return;
-      }
-      setIdentity(loadedIdentity);
-
       const reminderCount = await readReminderCount();
       if (active) {
         setShowReminder(reminderCount < REMINDER_LIMIT);
@@ -62,7 +55,7 @@ export default function Invite() {
       await bumpReminderCount(reminderCount);
 
       try {
-        const loadedLetter = await fetchInviteLetter(loadedIdentity);
+        const loadedLetter = await fetchInviteLetter(identity);
         if (active) {
           setLetter(loadedLetter);
         }
@@ -75,7 +68,7 @@ export default function Invite() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [identity]);
 
   const absoluteLink = (link: string) =>
     Platform.OS === "web" ? `${window.location.origin}${link}` : link;

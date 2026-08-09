@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { useFocusEffect, useRouter } from "expo-router";
 import { ApiError } from "../src/api/client";
 import { fetchHomeState, sendThanks, type HomeState } from "../src/api/home";
-import { loadIdentity, type Identity } from "../src/auth/identity";
+import { useIdentity } from "../src/auth/useIdentity";
+import type { Identity } from "../src/auth/identity";
 import { BalanceGauge } from "../src/components/BalanceGauge";
 import { ThanksButton } from "../src/components/ThanksButton";
 import { Saborine } from "../src/components/saborine/Saborine";
@@ -16,29 +17,12 @@ const EATING_REACTION_MS = 1_400;
 // 相手の直近の記録とありがとうボタンだけを置き、数値・回数・順位は一切出さない。
 export default function Home() {
   const router = useRouter();
-  const [identity, setIdentity] = useState<Identity | null>(null);
+  const identity = useIdentity();
   const [homeState, setHomeState] = useState<HomeState | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [thanksSending, setThanksSending] = useState(false);
   const [eating, setEating] = useState(false);
   const eatingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    loadIdentity().then((loaded) => {
-      if (!active) {
-        return;
-      }
-      if (!loaded) {
-        router.replace("/onboarding");
-        return;
-      }
-      setIdentity(loaded);
-    });
-    return () => {
-      active = false;
-    };
-  }, [router]);
 
   useEffect(() => {
     return () => {

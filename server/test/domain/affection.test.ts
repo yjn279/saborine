@@ -1,21 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { incrementAffection, unlockedGestures } from "../../src/domain/affection.js";
+import { unlockedGestures } from "../../src/domain/affection.js";
 
 describe("なつき度", () => {
-  it("記録またはありがとう1回ごとに+1される", () => {
-    expect(incrementAffection(0)).toBe(1);
-    expect(incrementAffection(41)).toBe(42);
-  });
-
-  it("何をしても減らない(増やす操作しか存在しない)", () => {
-    let value = 0;
-    for (let i = 0; i < 10; i += 1) {
-      const next = incrementAffection(value);
-      expect(next).toBeGreaterThan(value);
-      value = next;
-    }
-  });
-
   it.each([
     [4, []],
     [5, ["facesPartner"]],

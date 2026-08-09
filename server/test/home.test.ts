@@ -77,6 +77,15 @@ describe("ホームの状態", () => {
     expect(body.partnerLatestChore).toBeNull();
   });
 
+  it("迎えたばかりでは、まだ誰も記録していなくてもだらしなモードにならない", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+
+    const { body } = await getHome(db, account);
+    const saborine = body.saborine as { isSloppy: boolean };
+    expect(saborine.isSloppy).toBe(false);
+  });
+
   it("相手の直近の記録と、ありがとう済みかどうかを返す", async () => {
     const db = await createTestDb();
     const { a, b } = await registerPair(db, "彩花", "大樹");

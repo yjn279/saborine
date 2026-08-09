@@ -1,19 +1,16 @@
 import type { Db } from "./db.js";
+import { parseStoredTimestamp } from "./db.js";
 import type { PushSubscription, WebPushConfig } from "./push/send.js";
 import { sendWebPush } from "./push/send.js";
 import type { NotificationKind, TimedEvent } from "./push/notifications.js";
 import { buildNotificationContent, groupWithinOneHour, quietHourWindowEnding } from "./push/notifications.js";
-import { generateWeeklyCardText, getPreviousWeekRange } from "./domain/weekly-card.js";
+import { getPreviousWeekRange } from "./domain/weekly-card.js";
+import { ensureWeeklyCard } from "./weekly-card-store.js";
 
 // 予定実行(Cron Triggers)から呼ぶ2つの仕事に対応する式。server/wrangler.jsoncの設定と対にする。
 // 週次カード: 日曜21:00 JST(=12:00 UTC)。繰り越しぶんの記録・ありがとう: 翌8:00 JST(=23:00 UTC)。
 export const WEEKLY_CARD_CRON = "0 12 * * 0";
 export const MORNING_CATCH_UP_CRON = "0 23 * * *";
-
-// SQLiteのCURRENT_TIMESTAMPは"YYYY-MM-DD HH:MM:SS"(UTC、区切りは空白)で保存される。
-function parseStoredTimestamp(value: unknown): Date {
-  return new Date(`${String(value).replace(" ", "T")}Z`);
-}
 
 function formatForQuery(date: Date): string {
   return date.toISOString().slice(0, 19).replace("T", " ");
@@ -72,41 +69,6 @@ async function deliverWeeklyCards(db: Db, config: WebPushConfig, now: Date): Pro
       await notifyUser(db, config, String(userRow.id), "weekly_card");
     }
   }
-}
-
-async function ensureWeeklyCard(db: Db, pairId: string, weekRange: { start: Date; end: Date }): Promise<void> {
-  const existing = await db.execute({
-    sql: "SELECT id FROM weekly_cards WHERE pair_id = ? AND week_start = ?",
-    args: [pairId, weekRange.start.toISOString()],
-  });
-  if (existing.rows.length > 0) {
-    return;
-  }
-
-  const [choreLogsResult, thanksResult] = await Promise.all([
-    db.execute({ sql: "SELECT chore_type, created_at FROM chore_logs WHERE pair_id = ?", args: [pairId] }),
-    db.execute({
-      sql: `SELECT thanks.created_at AS created_at
-            FROM thanks
-            JOIN chore_logs ON thanks.chore_log_id = chore_logs.id
-            WHERE chore_logs.pair_id = ?`,
-      args: [pairId],
-    }),
-  ]);
-  const choreTypes = choreLogsResult.rows
-    .filter((row) => isWithinRange(parseStoredTimestamp(row.created_at), weekRange))
-    .map((row) => String(row.chore_type));
-  const thanksCount = thanksResult.rows.filter((row) => isWithinRange(parseStoredTimestamp(row.created_at), weekRange)).length;
-
-  const storyText = generateWeeklyCardText({ choreTypes, thanksCount });
-  await db.execute({
-    sql: "INSERT INTO weekly_cards (id, pair_id, week_start, story_text) VALUES (?, ?, ?, ?)",
-    args: [crypto.randomUUID(), pairId, weekRange.start.toISOString(), storyText],
-  });
-}
-
-function isWithinRange(at: Date, range: { start: Date; end: Date }): boolean {
-  return at >= range.start && at < range.end;
 }
 
 interface RecipientEvent extends TimedEvent {

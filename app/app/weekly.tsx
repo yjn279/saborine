@@ -3,7 +3,7 @@ import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Text, View }
 import { useRouter } from "expo-router";
 import { ApiError } from "../src/api/client";
 import { fetchWeeklyCard, type WeeklyCard } from "../src/api/weekly";
-import { loadIdentity, type Identity } from "../src/auth/identity";
+import { useIdentity } from "../src/auth/useIdentity";
 import { Saborine } from "../src/components/saborine/Saborine";
 
 // 週次カード画面。絵が主役、本文は5行以内(server/src/domain/weekly-card.ts)。
@@ -12,38 +12,31 @@ import { Saborine } from "../src/components/saborine/Saborine";
 // 一切返さないため、この画面にも表示のしようがない。
 export default function Weekly() {
   const router = useRouter();
-  const [identity, setIdentity] = useState<Identity | null>(null);
+  const identity = useIdentity();
   const [card, setCard] = useState<WeeklyCard | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [shared, setShared] = useState(false);
 
   useEffect(() => {
+    if (!identity) {
+      return;
+    }
     let active = true;
-    (async () => {
-      const loaded = await loadIdentity();
-      if (!active) {
-        return;
-      }
-      if (!loaded) {
-        router.replace("/onboarding");
-        return;
-      }
-      setIdentity(loaded);
-      try {
-        const loadedCard = await fetchWeeklyCard(loaded);
+    fetchWeeklyCard(identity)
+      .then((loadedCard) => {
         if (active) {
           setCard(loadedCard);
         }
-      } catch (error) {
+      })
+      .catch((error) => {
         if (active) {
           setErrorMessage(error instanceof ApiError ? error.message : "カードが よみこめませんでした");
         }
-      }
-    })();
+      });
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [identity]);
 
   const storyLines = card ? card.storyText.split("\n") : [];
   const shareText = storyLines.length > 0 ? `サボリーヌの週次カード\n${storyLines.join("\n")}` : "";

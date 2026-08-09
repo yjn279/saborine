@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.js";
 import { authMiddleware } from "../auth.js";
+import { parseStoredTimestamp } from "../db.js";
 import { CHORE_PRESETS, orderPresetsByRecentUse } from "../domain/presets.js";
 import { calcGrowthPoints } from "../domain/growth.js";
 import { getWeekRange } from "../domain/week.js";
@@ -9,12 +10,6 @@ const CHORE_TYPE_MAX_LENGTH = 30;
 
 interface RecordChoreBody {
   choreType?: unknown;
-}
-
-// SQLiteのCURRENT_TIMESTAMPは"YYYY-MM-DD HH:MM:SS"(UTC、区切りは空白)で保存される。
-// JSのDateとして扱えるよう、T区切り+Zサフィックスの形に直す。
-function parseStoredTimestamp(value: unknown): Date {
-  return new Date(`${String(value).replace(" ", "T")}Z`);
 }
 
 export function createChoreRoutes() {

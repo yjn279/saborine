@@ -17,7 +17,8 @@ import {
   updateSettings,
   type SettingsState,
 } from "../src/api/settings";
-import { clearIdentity, loadIdentity, type Identity } from "../src/auth/identity";
+import { clearIdentity } from "../src/auth/identity";
+import { useIdentity } from "../src/auth/useIdentity";
 
 const CHARACTER_NAME_MAX_LENGTH = 20;
 
@@ -27,7 +28,7 @@ const CHARACTER_NAME_MAX_LENGTH = 20;
 // 見せないよう、最小限の見た目にとどめる。
 export default function Settings() {
   const router = useRouter();
-  const [identity, setIdentity] = useState<Identity | null>(null);
+  const identity = useIdentity();
   const [settings, setSettings] = useState<SettingsState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -41,33 +42,26 @@ export default function Settings() {
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
+    if (!identity) {
+      return;
+    }
     let active = true;
-    (async () => {
-      const loaded = await loadIdentity();
-      if (!active) {
-        return;
-      }
-      if (!loaded) {
-        router.replace("/onboarding");
-        return;
-      }
-      setIdentity(loaded);
-      try {
-        const loadedSettings = await fetchSettings(loaded);
+    fetchSettings(identity)
+      .then((loadedSettings) => {
         if (active) {
           setSettings(loadedSettings);
           setCharacterName(loadedSettings.characterName);
         }
-      } catch (error) {
+      })
+      .catch((error) => {
         if (active) {
           setLoadError(error instanceof ApiError ? error.message : "せっていが よみこめませんでした");
         }
-      }
-    })();
+      });
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [identity]);
 
   const handleToggleNotifications = async (next: boolean) => {
     if (!identity || !settings || savingNotifications) {
