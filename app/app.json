@@ -12,7 +12,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "output": "static"
+      "output": "static",
+      "themeColor": "#f4a261",
+      "backgroundColor": "#ffffff"
     },
     "plugins": ["expo-router"]
   }

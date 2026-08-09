@@ -22,4 +22,11 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  {
+    // PWAのService Worker。ブラウザのSWランタイムでだけ動くため、専用のグローバルを与える。
+    files: ["app/public/sw.js"],
+    languageOptions: {
+      globals: globals.serviceworker,
+    },
+  },
 );

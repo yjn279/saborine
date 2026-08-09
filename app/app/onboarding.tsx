@@ -1,21 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { apiRequest, ApiError } from "../src/api/client";
 import type { RegisterAccountRequest, RegisterAccountResponse } from "../src/api/types";
-import { createIdentity, saveIdentity } from "../src/auth/identity";
+import { createIdentity, saveIdentity, type Identity } from "../src/auth/identity";
 import { Saborine } from "../src/components/saborine/Saborine";
+import { InAppBanner } from "../src/components/InAppBanner";
+import { subscribeToPush } from "../src/push/subscribe";
 
 const DISPLAY_NAME_MAX_LENGTH = 30;
 
+type Step = "form" | "welcome" | "install";
+
 // はじめかた画面。入力は表示名だけ。登録に成功したらサボリーヌとの出会いを見せ、
-// ホームへ進む。失敗したら代替値で進まず、その場でメッセージを見せる。
+// 「ホーム画面に追加」の案内(必須ステップ)を経てホームへ進む。失敗したら代替値で
+// 進まず、その場でメッセージを見せる。
 export default function Onboarding() {
   const router = useRouter();
+  const [step, setStep] = useState<Step>("form");
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [metSaborine, setMetSaborine] = useState(false);
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [showBanner, setShowBanner] = useState(false);
 
   const trimmedName = displayName.trim();
   const canSubmit = trimmedName.length > 0 && !submitting;
@@ -24,18 +31,19 @@ export default function Onboarding() {
     setSubmitting(true);
     setErrorMessage(null);
     try {
-      const identity = createIdentity();
+      const newIdentity = createIdentity();
       const request: RegisterAccountRequest = {
         displayName: trimmedName,
-        userId: identity.userId,
-        secret: identity.secret,
+        userId: newIdentity.userId,
+        secret: newIdentity.secret,
       };
       await apiRequest<RegisterAccountResponse>("/api/account", {
         method: "POST",
         body: request,
       });
-      await saveIdentity(identity);
-      setMetSaborine(true);
+      await saveIdentity(newIdentity);
+      setIdentity(newIdentity);
+      setStep("welcome");
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "とうろくに しっぱいしました");
     } finally {
@@ -43,14 +51,46 @@ export default function Onboarding() {
     }
   };
 
-  if (metSaborine) {
+  useEffect(() => {
+    if (step !== "install" || !identity) {
+      return;
+    }
+    let active = true;
+    subscribeToPush(identity).then((result) => {
+      if (active && !result.subscribed) {
+        setShowBanner(true);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [step, identity]);
+
+  if (step === "install") {
+    return (
+      <View style={styles.container}>
+        <Saborine pose="happy" />
+        <Text style={styles.title}>サボリーヌのおうちを{"\n"}ホームがめんに つくろう</Text>
+        <Text style={styles.subtitle}>
+          ブラウザのメニューから「ホーム画面に追加」を えらぶと、アイコンから すぐに あそびに
+          いけるよ
+        </Text>
+        {showBanner ? <InAppBanner /> : null}
+        <Pressable style={styles.button} onPress={() => router.replace("/")}>
+          <Text style={styles.buttonText}>ホームへ すすむ</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (step === "welcome") {
     return (
       <View style={styles.container}>
         <Saborine pose="happy" />
         <Text style={styles.title}>ようこそ、{trimmedName}さん</Text>
         <Text style={styles.subtitle}>サボリーヌが なかまに なりました</Text>
-        <Pressable style={styles.button} onPress={() => router.replace("/")}>
-          <Text style={styles.buttonText}>ホームへ すすむ</Text>
+        <Pressable style={styles.button} onPress={() => setStep("install")}>
+          <Text style={styles.buttonText}>つぎへ</Text>
         </Pressable>
       </View>
     );
@@ -93,10 +133,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "600",
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 16,
     color: "#666",
+    textAlign: "center",
   },
   input: {
     width: "100%",
