@@ -8,6 +8,8 @@ import { createChoreRoutes } from "./routes/chores.js";
 import { createHomeRoutes } from "./routes/home.js";
 import { createWeeklyCardRoutes } from "./routes/weekly-card.js";
 import { createPushRoutes } from "./routes/push.js";
+import { createSettingsRoutes } from "./routes/settings.js";
+import { createPairRoutes } from "./routes/pair.js";
 
 export type AppEnv = {
   Variables: {
@@ -38,6 +40,8 @@ export function createApp(db: Db) {
   app.route("/api/home", createHomeRoutes());
   app.route("/api/weekly-card", createWeeklyCardRoutes());
   app.route("/api/push", createPushRoutes());
+  app.route("/api/settings", createSettingsRoutes());
+  app.route("/api/pair", createPairRoutes());
 
   return app;
 }

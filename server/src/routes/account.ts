@@ -86,5 +86,25 @@ export function createAccountRoutes() {
     });
   });
 
+  // アカウント削除。自分ぶんの身分証・なつき度・お知らせ購読だけを消し、以後は同じ
+  // Bearerトークンで何もできなくする。ペアとサボリーヌはひとり期間と同じ形で相手の
+  // もとに残るため(docs/mvp.md:17)、この入口はペアそのものは解かない(ペア解除は
+  // routes/pair.ts が別に担う)。
+  routes.delete("/", authMiddleware, async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+
+    await db.batch(
+      [
+        { sql: "DELETE FROM push_subscriptions WHERE user_id = ?", args: [user.id] },
+        { sql: "DELETE FROM affections WHERE user_id = ?", args: [user.id] },
+        { sql: "DELETE FROM users WHERE id = ?", args: [user.id] },
+      ],
+      "write",
+    );
+
+    return c.body(null, 204);
+  });
+
   return routes;
 }

@@ -47,3 +47,13 @@ export function createIdentity(): Identity {
 export async function saveIdentity(identity: Identity): Promise<void> {
   await writeStorage(JSON.stringify(identity));
 }
+
+// ペア解除・アカウント削除の直後にだけ呼ぶ。サーバー側で使えなくなった身分証を
+// 端末からも消し、再読み込みしても「登録済み」に戻らないようにする。
+export async function clearIdentity(): Promise<void> {
+  if (Platform.OS === "web") {
+    window.localStorage.removeItem(STORAGE_KEY);
+    return;
+  }
+  await SecureStore.deleteItemAsync(STORAGE_KEY);
+}
