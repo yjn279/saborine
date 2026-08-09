@@ -19,6 +19,8 @@ import {
 } from "../src/api/settings";
 import { clearIdentity } from "../src/auth/identity";
 import { useIdentity } from "../src/auth/useIdentity";
+import { CloseButton } from "../src/components/CloseButton";
+import { commonStyles } from "../src/styles/common";
 
 const CHARACTER_NAME_MAX_LENGTH = 20;
 
@@ -146,7 +148,7 @@ export default function Settings() {
     <View style={styles.container}>
       <Text style={styles.title}>せってい</Text>
 
-      {loadError ? <Text style={styles.error}>{loadError}</Text> : null}
+      {loadError ? <Text style={commonStyles.error}>{loadError}</Text> : null}
 
       {settings ? (
         <>
@@ -183,7 +185,7 @@ export default function Settings() {
             </View>
           </View>
 
-          {actionError ? <Text style={styles.error}>{actionError}</Text> : null}
+          {actionError ? <Text style={commonStyles.error}>{actionError}</Text> : null}
 
           <View style={styles.dangerZone}>
             {confirmingUnpair ? (
@@ -229,9 +231,7 @@ export default function Settings() {
         </>
       ) : null}
 
-      <Pressable style={styles.closeButton} onPress={() => router.back()}>
-        <Text style={styles.closeButtonText}>とじる</Text>
-      </Pressable>
+      <CloseButton onPress={() => router.back()} />
     </View>
   );
 }
@@ -293,11 +293,6 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.5,
   },
-  error: {
-    color: "#c0392b",
-    fontSize: 14,
-    textAlign: "center",
-  },
   dangerZone: {
     width: "100%",
     maxWidth: 320,
@@ -337,14 +332,5 @@ const styles = StyleSheet.create({
   cancelText: {
     color: "#999",
     fontSize: 13,
-  },
-  closeButton: {
-    marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  closeButtonText: {
-    color: "#999",
-    fontSize: 14,
   },
 });

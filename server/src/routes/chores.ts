@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.js";
 import { authMiddleware } from "../auth.js";
-import { parseStoredTimestamp } from "../db.js";
+import { formatStoredTimestamp } from "../db.js";
 import { CHORE_PRESETS, orderPresetsByRecentUse } from "../domain/presets.js";
 import { calcGrowthPoints } from "../domain/growth.js";
 import { getWeekRange } from "../domain/week.js";
@@ -112,18 +112,14 @@ export function createChoreRoutes() {
     // その週(日曜21時JST区切り)に、ペアの記録それぞれへ届いたありがとうの数から成長ポイントを求め直す。
     const weekRange = getWeekRange(new Date());
     const thanksInPairResult = await db.execute({
-      sql: `SELECT chore_logs.user_id AS recipient, thanks.created_at AS created_at
+      sql: `SELECT chore_logs.user_id AS recipient
             FROM thanks
             JOIN chore_logs ON thanks.chore_log_id = chore_logs.id
-            WHERE chore_logs.pair_id = ?`,
-      args: [user.pairId],
+            WHERE chore_logs.pair_id = ? AND thanks.created_at >= ? AND thanks.created_at < ?`,
+      args: [user.pairId, formatStoredTimestamp(weekRange.start), formatStoredTimestamp(weekRange.end)],
     });
     const countsByRecipient = new Map<string, number>();
     for (const row of thanksInPairResult.rows) {
-      const thankedAt = parseStoredTimestamp(row.created_at);
-      if (thankedAt < weekRange.start || thankedAt >= weekRange.end) {
-        continue;
-      }
       const recipient = String(row.recipient);
       countsByRecipient.set(recipient, (countsByRecipient.get(recipient) ?? 0) + 1);
     }

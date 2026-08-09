@@ -1,5 +1,5 @@
 import type { Db } from "./db.js";
-import { parseStoredTimestamp } from "./db.js";
+import { formatStoredTimestamp } from "./db.js";
 import type { WeekRange } from "./domain/week.js";
 import { generateWeeklyCardText } from "./domain/weekly-card.js";
 
@@ -17,22 +17,23 @@ export async function ensureWeeklyCard(db: Db, pairId: string, weekRange: WeekRa
     return String(existing.story_text);
   }
 
+  const weekStart = formatStoredTimestamp(weekRange.start);
+  const weekEnd = formatStoredTimestamp(weekRange.end);
   const [choreLogsResult, thanksResult] = await Promise.all([
-    db.execute({ sql: "SELECT chore_type, created_at FROM chore_logs WHERE pair_id = ?", args: [pairId] }),
     db.execute({
-      sql: `SELECT thanks.created_at AS created_at
+      sql: "SELECT chore_type FROM chore_logs WHERE pair_id = ? AND created_at >= ? AND created_at < ?",
+      args: [pairId, weekStart, weekEnd],
+    }),
+    db.execute({
+      sql: `SELECT thanks.id
             FROM thanks
             JOIN chore_logs ON thanks.chore_log_id = chore_logs.id
-            WHERE chore_logs.pair_id = ?`,
-      args: [pairId],
+            WHERE chore_logs.pair_id = ? AND thanks.created_at >= ? AND thanks.created_at < ?`,
+      args: [pairId, weekStart, weekEnd],
     }),
   ]);
-  const choreTypes = choreLogsResult.rows
-    .filter((row) => isWithinRange(parseStoredTimestamp(row.created_at), weekRange))
-    .map((row) => String(row.chore_type));
-  const thanksCount = thanksResult.rows.filter((row) =>
-    isWithinRange(parseStoredTimestamp(row.created_at), weekRange),
-  ).length;
+  const choreTypes = choreLogsResult.rows.map((row) => String(row.chore_type));
+  const thanksCount = thanksResult.rows.length;
 
   const storyText = generateWeeklyCardText({ choreTypes, thanksCount });
   await db.execute({
@@ -40,8 +41,4 @@ export async function ensureWeeklyCard(db: Db, pairId: string, weekRange: WeekRa
     args: [crypto.randomUUID(), pairId, weekStartIso, storyText],
   });
   return storyText;
-}
-
-function isWithinRange(at: Date, range: WeekRange): boolean {
-  return at >= range.start && at < range.end;
 }

@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { ApiError } from "../src/api/client";
 import { fetchWeeklyCard, type WeeklyCard } from "../src/api/weekly";
 import { useIdentity } from "../src/auth/useIdentity";
+import { CloseButton } from "../src/components/CloseButton";
 import { Saborine } from "../src/components/saborine/Saborine";
+import { shareOrCopy } from "../src/share";
+import { commonStyles } from "../src/styles/common";
 
 // 週次カード画面。絵が主役、本文は5行以内(server/src/domain/weekly-card.ts)。
 // 過去カードの一覧は作らない。いま直前の週のカード1枚だけを見せ、
@@ -45,19 +48,13 @@ export default function Weekly() {
     if (!shareText) {
       return;
     }
-    if (Platform.OS === "web") {
-      const nav = window.navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
-      if (nav.share) {
-        await nav.share({ title: "サボリーヌの週次カード", text: shareText }).catch(() => undefined);
-        return;
-      }
-      if (window.navigator.clipboard) {
-        await window.navigator.clipboard.writeText(shareText);
-        setShared(true);
-      }
-      return;
+    const copied = await shareOrCopy({
+      web: { title: "サボリーヌの週次カード", text: shareText },
+      message: shareText,
+    });
+    if (copied) {
+      setShared(true);
     }
-    await Share.share({ message: shareText });
   };
 
   if (!identity || (!card && !errorMessage)) {
@@ -72,7 +69,7 @@ export default function Weekly() {
     <View style={styles.container}>
       <Text style={styles.title}>こんしゅうの おはなし</Text>
 
-      {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+      {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
 
       {card ? (
         <View style={styles.card}>
@@ -97,9 +94,7 @@ export default function Weekly() {
         </View>
       ) : null}
 
-      <Pressable style={styles.closeButton} onPress={() => router.back()}>
-        <Text style={styles.closeButtonText}>とじる</Text>
-      </Pressable>
+      <CloseButton onPress={() => router.back()} />
     </View>
   );
 }
@@ -137,11 +132,6 @@ const styles = StyleSheet.create({
     color: "#5c4a30",
     textAlign: "center",
   },
-  error: {
-    color: "#c0392b",
-    fontSize: 14,
-    textAlign: "center",
-  },
   actions: {
     alignItems: "center",
   },
@@ -157,14 +147,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "600",
-  },
-  closeButton: {
-    marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  closeButtonText: {
-    color: "#999",
-    fontSize: 14,
   },
 });

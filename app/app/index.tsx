@@ -9,6 +9,7 @@ import { BalanceGauge } from "../src/components/BalanceGauge";
 import { ThanksButton } from "../src/components/ThanksButton";
 import { Saborine } from "../src/components/saborine/Saborine";
 import type { SaborinePose } from "../src/components/saborine/types";
+import { commonStyles } from "../src/styles/common";
 
 const POLL_INTERVAL_MS = 20_000;
 const EATING_REACTION_MS = 1_400;
@@ -78,7 +79,7 @@ export default function Home() {
   if (!identity || !homeState) {
     return (
       <View style={styles.container}>
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : <ActivityIndicator />}
+        {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : <ActivityIndicator />}
       </View>
     );
   }
@@ -114,7 +115,7 @@ export default function Home() {
         <Text style={styles.partnerEmpty}>まだ とどいてないみたい</Text>
       )}
 
-      {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+      {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
 
       <Pressable style={styles.recordButton} onPress={() => router.push("/record")}>
         <Text style={styles.recordButtonText}>きろくする</Text>
@@ -147,11 +148,6 @@ const styles = StyleSheet.create({
   partnerEmpty: {
     fontSize: 14,
     color: "#999",
-  },
-  error: {
-    color: "#c0392b",
-    fontSize: 14,
-    textAlign: "center",
   },
   recordButton: {
     backgroundColor: "#f4a261",

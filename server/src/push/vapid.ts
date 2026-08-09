@@ -30,7 +30,21 @@ export function base64UrlDecode(value: string): Uint8Array {
   return bytes;
 }
 
-async function importVapidPrivateKey(keyPair: VapidKeyPair): Promise<CryptoKey> {
+// 同じ鍵ペアはお知らせの配信中に何度も使われる(scheduled.tsが購読ごとに送信する)ため、
+// インポート結果をVapidKeyPairごとにキャッシュし、毎回のcrypto.subtle.importKeyを避ける。
+const importedKeyCache = new WeakMap<VapidKeyPair, Promise<CryptoKey>>();
+
+function importVapidPrivateKey(keyPair: VapidKeyPair): Promise<CryptoKey> {
+  const cached = importedKeyCache.get(keyPair);
+  if (cached) {
+    return cached;
+  }
+  const imported = importVapidPrivateKeyUncached(keyPair);
+  importedKeyCache.set(keyPair, imported);
+  return imported;
+}
+
+async function importVapidPrivateKeyUncached(keyPair: VapidKeyPair): Promise<CryptoKey> {
   const publicBytes = base64UrlDecode(keyPair.publicKey);
   if (publicBytes.length !== EC_P256_PUBLIC_KEY_LENGTH) {
     throw new Error("VAPID公開鍵の形式が不正です");

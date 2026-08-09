@@ -1,5 +1,5 @@
 import type { Db } from "./db.js";
-import { parseStoredTimestamp } from "./db.js";
+import { formatStoredTimestamp, parseStoredTimestamp } from "./db.js";
 import type { PushSubscription, WebPushConfig } from "./push/send.js";
 import { sendWebPush } from "./push/send.js";
 import type { NotificationKind, TimedEvent } from "./push/notifications.js";
@@ -11,10 +11,6 @@ import { ensureWeeklyCard } from "./weekly-card-store.js";
 // 週次カード: 日曜21:00 JST(=12:00 UTC)。繰り越しぶんの記録・ありがとう: 翌8:00 JST(=23:00 UTC)。
 export const WEEKLY_CARD_CRON = "0 12 * * 0";
 export const MORNING_CATCH_UP_CRON = "0 23 * * *";
-
-function formatForQuery(date: Date): string {
-  return date.toISOString().slice(0, 19).replace("T", " ");
-}
 
 export async function runScheduled(db: Db, config: WebPushConfig, cron: string, now: Date): Promise<void> {
   if (cron === WEEKLY_CARD_CRON) {
@@ -44,12 +40,14 @@ async function notifyUser(db: Db, config: WebPushConfig, userId: string, kind: N
     return;
   }
   const content = buildNotificationContent(kind);
-  for (const subscription of subscriptions) {
-    const result = await sendWebPush(subscription, { kind, ...content }, config);
-    if (result.outcome === "expired") {
-      await db.execute({ sql: "DELETE FROM push_subscriptions WHERE endpoint = ?", args: [subscription.endpoint] });
-    }
-  }
+  await Promise.all(
+    subscriptions.map(async (subscription) => {
+      const result = await sendWebPush(subscription, { kind, ...content }, config);
+      if (result.outcome === "expired") {
+        await db.execute({ sql: "DELETE FROM push_subscriptions WHERE endpoint = ?", args: [subscription.endpoint] });
+      }
+    }),
+  );
 }
 
 // 直前の週が閉じたペアそれぞれへ、週次カードを生成(未生成なら)し、購読しているメンバーへ届ける。
@@ -57,18 +55,20 @@ async function deliverWeeklyCards(db: Db, config: WebPushConfig, now: Date): Pro
   const weekRange = getPreviousWeekRange(now);
   const pairsResult = await db.execute({ sql: "SELECT id FROM pairs WHERE established_at IS NOT NULL", args: [] });
 
-  for (const pairRow of pairsResult.rows) {
-    const pairId = String(pairRow.id);
-    await ensureWeeklyCard(db, pairId, weekRange);
+  await Promise.all(
+    pairsResult.rows.map(async (pairRow) => {
+      const pairId = String(pairRow.id);
+      await ensureWeeklyCard(db, pairId, weekRange);
 
-    const usersResult = await db.execute({
-      sql: "SELECT id FROM users WHERE pair_id = ? AND notifications_enabled = 1",
-      args: [pairId],
-    });
-    for (const userRow of usersResult.rows) {
-      await notifyUser(db, config, String(userRow.id), "weekly_card");
-    }
-  }
+      const usersResult = await db.execute({
+        sql: "SELECT id FROM users WHERE pair_id = ? AND notifications_enabled = 1",
+        args: [pairId],
+      });
+      await Promise.all(
+        usersResult.rows.map((userRow) => notifyUser(db, config, String(userRow.id), "weekly_card")),
+      );
+    }),
+  );
 }
 
 interface RecipientEvent extends TimedEvent {
@@ -92,20 +92,22 @@ async function deliverQuietHourNotifications(db: Db, config: WebPushConfig, now:
     }
   }
 
-  for (const [key, recipientEvents] of groupedByRecipient) {
-    const separatorIndex = key.lastIndexOf(":");
-    const userId = key.slice(0, separatorIndex);
-    const kind = key.slice(separatorIndex + 1) as RecipientEvent["kind"];
-    const batchCount = groupWithinOneHour(recipientEvents).length;
-    for (let batchIndex = 0; batchIndex < batchCount; batchIndex += 1) {
-      await notifyUser(db, config, userId, kind);
-    }
-  }
+  await Promise.all(
+    Array.from(groupedByRecipient.entries()).map(([key, recipientEvents]) => {
+      const separatorIndex = key.lastIndexOf(":");
+      const userId = key.slice(0, separatorIndex);
+      const kind = key.slice(separatorIndex + 1) as RecipientEvent["kind"];
+      const batchCount = groupWithinOneHour(recipientEvents).length;
+      return Promise.all(
+        Array.from({ length: batchCount }, () => notifyUser(db, config, userId, kind)),
+      );
+    }),
+  );
 }
 
 async function collectQuietHourEvents(db: Db, window: { start: Date; end: Date }): Promise<RecipientEvent[]> {
-  const windowStart = formatForQuery(window.start);
-  const windowEnd = formatForQuery(window.end);
+  const windowStart = formatStoredTimestamp(window.start);
+  const windowEnd = formatStoredTimestamp(window.end);
   const events: RecipientEvent[] = [];
 
   // 記録のお知らせは、記録した本人ではなく相手に届ける。

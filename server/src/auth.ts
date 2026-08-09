@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "./app.js";
+import type { Db } from "./db.js";
 
 // クライアントが自分で生成するID・合言葉の形式。UUID(ハイフンあり36文字)がそのまま収まる
 // 範囲に絞り、Bearerトークン(`<userId>:<secret>`)の区切り文字と衝突しないようにする。
@@ -9,6 +10,44 @@ const CREDENTIAL_PATTERN = /^[A-Za-z0-9_-]{22,128}$/;
 
 export function isValidCredential(value: string): boolean {
   return CREDENTIAL_PATTERN.test(value);
+}
+
+export const DISPLAY_NAME_MAX_LENGTH = 30;
+
+export interface RegistrationInput {
+  displayName: string;
+  userId: string;
+  secret: string;
+}
+
+export type RegistrationValidation =
+  | { ok: true; input: RegistrationInput }
+  | { ok: false; error: string };
+
+// 表示名だけの新規登録(routes/account.ts)と、招待の受諾登録(routes/invite.ts)が
+// 共有する入力チェック。表示名・クライアント生成のID/合言葉の形を検証する。
+export function validateRegistrationInput(body: unknown): RegistrationValidation {
+  const record = body as { displayName?: unknown; userId?: unknown; secret?: unknown } | null;
+  const displayName = typeof record?.displayName === "string" ? record.displayName.trim() : "";
+  const userId = typeof record?.userId === "string" ? record.userId : "";
+  const secret = typeof record?.secret === "string" ? record.secret : "";
+
+  if (!displayName || displayName.length > DISPLAY_NAME_MAX_LENGTH) {
+    return { ok: false, error: "表示名を入力してください" };
+  }
+  if (!isValidCredential(userId) || !isValidCredential(secret)) {
+    return { ok: false, error: "登録情報が正しくありません" };
+  }
+  return { ok: true, input: { displayName, userId, secret } };
+}
+
+// 指定したIDのユーザーがすでに登録済みかどうか。
+export async function isUserIdRegistered(db: Db, userId: string): Promise<boolean> {
+  const existing = await db.execute({
+    sql: "SELECT id FROM users WHERE id = ?",
+    args: [userId],
+  });
+  return existing.rows.length > 0;
 }
 
 // 合言葉をSHA-256でハッシュ化して保存用の文字列にする。平文のまま保存しないための処理。

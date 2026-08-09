@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.js";
 import { authMiddleware } from "../auth.js";
-import { parseStoredTimestamp } from "../db.js";
+import { formatStoredTimestamp, parseStoredTimestamp } from "../db.js";
 import { calcBalanceGauge } from "../domain/gauge.js";
 import { unlockedGestures } from "../domain/affection.js";
 import { isSloppyMode } from "../domain/mood.js";
@@ -83,17 +83,13 @@ export function createHomeRoutes() {
     let partnerRecentThanksCount = 0;
     if (chorePairResult.rows.length > 0) {
       const thanksResult = await db.execute({
-        sql: `SELECT chore_logs.user_id AS recipient, thanks.created_at AS created_at
+        sql: `SELECT chore_logs.user_id AS recipient
               FROM thanks
               JOIN chore_logs ON thanks.chore_log_id = chore_logs.id
-              WHERE chore_logs.pair_id = ?`,
-        args: [user.pairId],
+              WHERE chore_logs.pair_id = ? AND thanks.created_at >= ?`,
+        args: [user.pairId, formatStoredTimestamp(gaugeWindowStart)],
       });
       for (const row of thanksResult.rows) {
-        const thankedAt = parseStoredTimestamp(row.created_at);
-        if (thankedAt < gaugeWindowStart) {
-          continue;
-        }
         const recipient = String(row.recipient);
         if (recipient === user.id) {
           myRecentThanksCount += 1;

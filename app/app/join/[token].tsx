@@ -8,6 +8,7 @@ import { createIdentity, loadIdentity, saveIdentity, type Identity } from "../..
 import { LetterCard } from "../../src/components/LetterCard";
 import { Saborine } from "../../src/components/saborine/Saborine";
 import { ThanksButton } from "../../src/components/ThanksButton";
+import { commonStyles } from "../../src/styles/common";
 
 const DISPLAY_NAME_MAX_LENGTH = 30;
 
@@ -128,7 +129,7 @@ export default function Join() {
           </View>
         ) : null}
 
-        {joinError ? <Text style={styles.error}>{joinError}</Text> : null}
+        {joinError ? <Text style={commonStyles.error}>{joinError}</Text> : null}
 
         <Pressable style={styles.button} onPress={() => router.replace("/")}>
           <Text style={styles.buttonText}>ホームへ すすむ</Text>
@@ -153,7 +154,7 @@ export default function Join() {
   if (previewError) {
     return (
       <View style={styles.container}>
-        <Text style={styles.error}>{previewError}</Text>
+        <Text style={commonStyles.error}>{previewError}</Text>
       </View>
     );
   }
@@ -181,7 +182,7 @@ export default function Join() {
         editable={!submitting}
         autoFocus
       />
-      {joinError ? <Text style={styles.error}>{joinError}</Text> : null}
+      {joinError ? <Text style={commonStyles.error}>{joinError}</Text> : null}
       <Pressable
         style={[styles.button, !canSubmit && styles.buttonDisabled]}
         onPress={handleJoin}
@@ -220,11 +221,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    textAlign: "center",
-  },
-  error: {
-    color: "#c0392b",
-    fontSize: 14,
     textAlign: "center",
   },
   button: {

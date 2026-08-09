@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
+import { formatStoredTimestamp } from "../src/db.js";
 import { createTestDb, registerTestAccount } from "./helpers.js";
 import {
   NOTIFICATION_KINDS,
@@ -14,11 +15,6 @@ import type { PushSubscription, WebPushConfig } from "../src/push/send.js";
 import { base64UrlDecode, base64UrlEncode, generateVapidKeyPair } from "../src/push/vapid.js";
 import { MORNING_CATCH_UP_CRON, WEEKLY_CARD_CRON, runScheduled } from "../src/scheduled.js";
 import { getPreviousWeekRange } from "../src/domain/weekly-card.js";
-
-// SQLiteに保存するときと同じ"YYYY-MM-DD HH:MM:SS"(UTC、区切りは空白)の形にする。
-function formatForStorage(date: Date): string {
-  return date.toISOString().slice(0, 19).replace("T", " ");
-}
 
 // テスト用に、実在の購読と同じ形(P-256のECDH公開鍵+16バイトの認証シークレット)を作る。
 async function createFakeSubscription(endpoint: string): Promise<PushSubscription> {
@@ -295,7 +291,7 @@ describe("予定実行(Cron Triggers)", () => {
         account.pairId,
         account.userId,
         "お皿洗い",
-        formatForStorage(new Date(previousWeek.start.getTime() + 60_000)),
+        formatStoredTimestamp(new Date(previousWeek.start.getTime() + 60_000)),
       ],
     });
     const subscription = await createFakeSubscription("https://push.example.com/weekly");

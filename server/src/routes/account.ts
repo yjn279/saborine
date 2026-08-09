@@ -1,39 +1,23 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.js";
-import { authMiddleware, hashSecret, isValidCredential } from "../auth.js";
+import { authMiddleware, hashSecret, isUserIdRegistered, validateRegistrationInput } from "../auth.js";
 
-const DISPLAY_NAME_MAX_LENGTH = 30;
 const CHARACTER_NAME = "サボリーヌ";
-
-interface RegisterBody {
-  displayName?: unknown;
-  userId?: unknown;
-  secret?: unknown;
-}
 
 export function createAccountRoutes() {
   const routes = new Hono<AppEnv>();
 
   // 表示名だけの登録。ユーザー・ペアの器・サボリーヌ1体・なつき度の初期値を同時に作る。
   routes.post("/", async (c) => {
-    const body = (await c.req.json().catch(() => null)) as RegisterBody | null;
-    const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
-    const userId = typeof body?.userId === "string" ? body.userId : "";
-    const secret = typeof body?.secret === "string" ? body.secret : "";
-
-    if (!displayName || displayName.length > DISPLAY_NAME_MAX_LENGTH) {
-      return c.json({ error: "表示名を入力してください" }, 400);
+    const body = await c.req.json().catch(() => null);
+    const validation = validateRegistrationInput(body);
+    if (!validation.ok) {
+      return c.json({ error: validation.error }, 400);
     }
-    if (!isValidCredential(userId) || !isValidCredential(secret)) {
-      return c.json({ error: "登録情報が正しくありません" }, 400);
-    }
+    const { displayName, userId, secret } = validation.input;
 
     const db = c.get("db");
-    const existing = await db.execute({
-      sql: "SELECT id FROM users WHERE id = ?",
-      args: [userId],
-    });
-    if (existing.rows.length > 0) {
+    if (await isUserIdRegistered(db, userId)) {
       return c.json({ error: "すでに登録されています" }, 409);
     }
 

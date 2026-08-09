@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
-import * as SecureStore from "expo-secure-store";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { ApiError } from "../src/api/client";
 import { fetchInviteLetter, type InviteLetter } from "../src/api/invite";
 import { useIdentity } from "../src/auth/useIdentity";
+import { CloseButton } from "../src/components/CloseButton";
 import { LetterCard } from "../src/components/LetterCard";
+import { copyToClipboard, shareOrCopy } from "../src/share";
+import { getStorageItem, setStorageItem } from "../src/storage";
+import { commonStyles } from "../src/styles/common";
 
 // 招待カードの再提示は2回まで(初回記録の直後・3日後を想定)。それ以上はアプリから
 // 促さない(docs/mvp.md:30)。この画面が開かれた回数をその代わりの目印として数え、
@@ -14,20 +17,12 @@ const REMINDER_LIMIT = 2;
 const REMINDER_COUNT_KEY = "saborine.inviteReminderCount";
 
 async function readReminderCount(): Promise<number> {
-  const raw =
-    Platform.OS === "web"
-      ? window.localStorage.getItem(REMINDER_COUNT_KEY)
-      : await SecureStore.getItemAsync(REMINDER_COUNT_KEY);
+  const raw = await getStorageItem(REMINDER_COUNT_KEY);
   return raw ? Number(raw) : 0;
 }
 
 async function bumpReminderCount(current: number): Promise<void> {
-  const next = String(current + 1);
-  if (Platform.OS === "web") {
-    window.localStorage.setItem(REMINDER_COUNT_KEY, next);
-    return;
-  }
-  await SecureStore.setItemAsync(REMINDER_COUNT_KEY, next);
+  await setStorageItem(REMINDER_COUNT_KEY, String(current + 1));
 }
 
 // 手紙を送る画面。プレビューを見せ、「これなら責めていると思われない」と本人が
@@ -78,25 +73,16 @@ export default function Invite() {
       return;
     }
     const url = absoluteLink(letter.link);
-    if (Platform.OS === "web") {
-      const nav = window.navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
-      if (nav.share) {
-        await nav.share({ url }).catch(() => undefined);
-        return;
-      }
-      await handleCopy();
-      return;
+    if (await shareOrCopy({ web: { url }, message: url })) {
+      setCopied(true);
     }
-    await Share.share({ message: url });
   };
 
   const handleCopy = async () => {
     if (!letter) {
       return;
     }
-    const url = absoluteLink(letter.link);
-    if (Platform.OS === "web" && window.navigator.clipboard) {
-      await window.navigator.clipboard.writeText(url);
+    if (await copyToClipboard(absoluteLink(letter.link))) {
       setCopied(true);
     }
   };
@@ -113,7 +99,7 @@ export default function Invite() {
     <View style={styles.container}>
       <Text style={styles.title}>サボリーヌの てがみ</Text>
 
-      {loadError ? <Text style={styles.error}>{loadError}</Text> : null}
+      {loadError ? <Text style={commonStyles.error}>{loadError}</Text> : null}
 
       {letter ? (
         <>
@@ -142,9 +128,7 @@ export default function Invite() {
         </>
       ) : null}
 
-      <Pressable style={styles.closeButton} onPress={() => router.back()}>
-        <Text style={styles.closeButtonText}>とじる</Text>
-      </Pressable>
+      <CloseButton onPress={() => router.back()} />
     </View>
   );
 }
@@ -161,11 +145,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#333",
-  },
-  error: {
-    color: "#c0392b",
-    fontSize: 14,
-    textAlign: "center",
   },
   confirmBox: {
     alignItems: "center",
@@ -217,15 +196,6 @@ const styles = StyleSheet.create({
   },
   copyButtonText: {
     color: "#a08860",
-    fontSize: 14,
-  },
-  closeButton: {
-    marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  closeButtonText: {
-    color: "#999",
     fontSize: 14,
   },
 });

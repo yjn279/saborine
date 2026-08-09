@@ -50,3 +50,34 @@ export async function registerTestAccount(
   const json = (await res.json()) as { pairId: string; characterId: string };
   return { ...credential, pairId: json.pairId, characterId: json.characterId };
 }
+
+// 手紙の受諾フローを通して、実際にペアになったふたりぶんのアカウントを作る。
+export async function registerTestPair(
+  db: Db,
+  nameA: string,
+  nameB: string,
+): Promise<{ a: TestAccount; b: TestAccount }> {
+  const a = await registerTestAccount(db, nameA);
+  const letterRes = await createApp(db).request("/api/invite/letter", {
+    headers: { Authorization: a.authorization },
+  });
+  const { token } = (await letterRes.json()) as { token: string };
+
+  const bUserId = crypto.randomUUID();
+  const bSecret = crypto.randomUUID();
+  const acceptRes = await createApp(db).request(`/api/invite/${token}/accept`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ displayName: nameB, userId: bUserId, secret: bSecret }),
+  });
+  const acceptBody = (await acceptRes.json()) as { pairId: string; characterId: string };
+
+  const b: TestAccount = {
+    userId: bUserId,
+    secret: bSecret,
+    authorization: `Bearer ${bUserId}:${bSecret}`,
+    pairId: acceptBody.pairId,
+    characterId: acceptBody.characterId,
+  };
+  return { a, b };
+}

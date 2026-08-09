@@ -4,7 +4,9 @@ import { useRouter } from "expo-router";
 import { ApiError } from "../src/api/client";
 import { fetchChorePresets, recordChore } from "../src/api/home";
 import { useIdentity } from "../src/auth/useIdentity";
+import { CloseButton } from "../src/components/CloseButton";
 import { Saborine } from "../src/components/saborine/Saborine";
+import { commonStyles } from "../src/styles/common";
 
 const FREE_TEXT_MAX_LENGTH = 30;
 
@@ -64,7 +66,7 @@ export default function Record() {
       <Saborine pose="normal" size={110} />
       <Text style={styles.title}>なにか してくれた?</Text>
 
-      {loadError ? <Text style={styles.error}>{loadError}</Text> : null}
+      {loadError ? <Text style={commonStyles.error}>{loadError}</Text> : null}
       {!loadError && !presets ? <ActivityIndicator /> : null}
 
       {presets ? (
@@ -111,11 +113,9 @@ export default function Record() {
         </Pressable>
       </View>
 
-      {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+      {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
 
-      <Pressable style={styles.closeButton} onPress={() => router.back()}>
-        <Text style={styles.closeButtonText}>とじる</Text>
-      </Pressable>
+      <CloseButton onPress={() => router.back()} />
     </View>
   );
 }
@@ -182,19 +182,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "600",
-  },
-  error: {
-    color: "#c0392b",
-    fontSize: 14,
-    textAlign: "center",
-  },
-  closeButton: {
-    marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  closeButtonText: {
-    color: "#999",
-    fontSize: 14,
   },
 });

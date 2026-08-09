@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
+import { formatStoredTimestamp } from "../src/db.js";
 import { containsBlameWords } from "../src/domain/letter.js";
 import { generateWeeklyCardText, getPreviousWeekRange } from "../src/domain/weekly-card.js";
 import { createTestDb, registerTestAccount } from "./helpers.js";
-
-// SQLiteに保存するときと同じ"YYYY-MM-DD HH:MM:SS"(UTC、区切りは空白)の形にする。
-function formatForStorage(date: Date): string {
-  return date.toISOString().slice(0, 19).replace("T", " ");
-}
 
 describe("週次カードの本文", () => {
   it("常に5行以内で、責める調子にならない", () => {
@@ -58,7 +54,7 @@ describe("GET /api/weekly-card", () => {
     const db = await createTestDb();
     const account = await registerTestAccount(db, "彩花");
     const previousWeek = getPreviousWeekRange(new Date());
-    const withinPreviousWeek = formatForStorage(new Date(previousWeek.start.getTime() + 60_000));
+    const withinPreviousWeek = formatStoredTimestamp(new Date(previousWeek.start.getTime() + 60_000));
 
     const choreLogId = crypto.randomUUID();
     await db.execute({
@@ -101,7 +97,7 @@ describe("GET /api/weekly-card", () => {
     const db = await createTestDb();
     const account = await registerTestAccount(db, "彩花");
     const previousWeek = getPreviousWeekRange(new Date());
-    const withinPreviousWeek = formatForStorage(new Date(previousWeek.start.getTime() + 60_000));
+    const withinPreviousWeek = formatStoredTimestamp(new Date(previousWeek.start.getTime() + 60_000));
     await db.execute({
       sql: "INSERT INTO chore_logs (id, pair_id, user_id, chore_type, created_at) VALUES (?, ?, ?, ?, ?)",
       args: [crypto.randomUUID(), account.pairId, account.userId, "ゴミ出し", withinPreviousWeek],

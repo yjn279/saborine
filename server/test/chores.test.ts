@@ -3,38 +3,12 @@ import { createApp } from "../src/app.js";
 import { CHORE_PRESETS } from "../src/domain/presets.js";
 import { calcGrowthPoints } from "../src/domain/growth.js";
 import type { Db } from "../src/db.js";
-import { createTestDb, registerTestAccount, type TestAccount } from "./helpers.js";
-
-// 手紙の受諾フローを通して、実際にペアになったふたりぶんのアカウントを作る。
-async function registerPair(
-  db: Db,
-  nameA: string,
-  nameB: string,
-): Promise<{ a: TestAccount; b: TestAccount }> {
-  const a = await registerTestAccount(db, nameA);
-  const letterRes = await createApp(db).request("/api/invite/letter", {
-    headers: { Authorization: a.authorization },
-  });
-  const { token } = (await letterRes.json()) as { token: string };
-
-  const bUserId = crypto.randomUUID();
-  const bSecret = crypto.randomUUID();
-  const acceptRes = await createApp(db).request(`/api/invite/${token}/accept`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ displayName: nameB, userId: bUserId, secret: bSecret }),
-  });
-  const acceptBody = (await acceptRes.json()) as { pairId: string; characterId: string };
-
-  const b: TestAccount = {
-    userId: bUserId,
-    secret: bSecret,
-    authorization: `Bearer ${bUserId}:${bSecret}`,
-    pairId: acceptBody.pairId,
-    characterId: acceptBody.characterId,
-  };
-  return { a, b };
-}
+import {
+  createTestDb,
+  registerTestAccount,
+  registerTestPair as registerPair,
+  type TestAccount,
+} from "./helpers.js";
 
 async function recordChore(db: Db, account: TestAccount, choreType: string) {
   const res = await createApp(db).request("/api/chores", {

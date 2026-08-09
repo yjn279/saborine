@@ -15,3 +15,9 @@ export function createDb(config: Config): Db {
 export function parseStoredTimestamp(value: unknown): Date {
   return new Date(`${String(value).replace(" ", "T")}Z`);
 }
+
+// parseStoredTimestampの逆変換。DateをWHERE句のcreated_at比較に使える
+// "YYYY-MM-DD HH:MM:SS"形式へ直す。
+export function formatStoredTimestamp(date: Date): string {
+  return date.toISOString().slice(0, 19).replace("T", " ");
+}

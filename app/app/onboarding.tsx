@@ -7,6 +7,7 @@ import { createIdentity, saveIdentity, type Identity } from "../src/auth/identit
 import { Saborine } from "../src/components/saborine/Saborine";
 import { InAppBanner } from "../src/components/InAppBanner";
 import { subscribeToPush } from "../src/push/subscribe";
+import { commonStyles } from "../src/styles/common";
 
 const DISPLAY_NAME_MAX_LENGTH = 30;
 
@@ -110,7 +111,7 @@ export default function Onboarding() {
         editable={!submitting}
         autoFocus
       />
-      {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+      {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
       <Pressable
         style={[styles.button, !canSubmit && styles.buttonDisabled]}
         onPress={handleSubmit}
@@ -149,11 +150,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    textAlign: "center",
-  },
-  error: {
-    color: "#c0392b",
-    fontSize: 14,
     textAlign: "center",
   },
   button: {
