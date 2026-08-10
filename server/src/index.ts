@@ -28,10 +28,11 @@ function vapidConfig(env: Env): { vapidKeyPair: VapidKeyPair; subject: string } 
 // 記録・ありがとうの直後の即時プッシュ通知(docs/mvp.md:126)に使う。予定実行(cron)と違い
 // この設定が無くても記録自体は続けられるべきなので、未設定なら即時送信を諦めるだけに留める。
 function optionalVapidConfig(env: Env): { vapidKeyPair: VapidKeyPair; subject: string } | undefined {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) {
+  try {
+    return vapidConfig(env);
+  } catch {
     return undefined;
   }
-  return vapidConfig(env);
 }
 
 export default {

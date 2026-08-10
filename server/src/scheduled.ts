@@ -3,7 +3,12 @@ import { formatStoredTimestamp, parseStoredTimestamp } from "./db.js";
 import type { PushSubscription, WebPushConfig } from "./push/send.js";
 import { sendWebPush } from "./push/send.js";
 import type { NotificationKind, TimedEvent } from "./push/notifications.js";
-import { buildNotificationContent, groupWithinOneHour, quietHourWindowEnding } from "./push/notifications.js";
+import {
+  buildNotificationContent,
+  groupWithinOneHour,
+  quietHourWindowEnding,
+  resolveDeliveryTime,
+} from "./push/notifications.js";
 import { getPreviousWeekRange } from "./domain/weekly-card.js";
 import { ensureWeeklyCard } from "./weekly-card-store.js";
 import { getPreviousMonthRange, isFirstDayOfMonthJst } from "./domain/week.js";
@@ -68,6 +73,24 @@ export async function notifyUser(db: Db, config: WebPushConfig, userId: string, 
       }
     }),
   );
+}
+
+// 記録・ありがとうの直後に、いま(=occurredAt)が夜間(22時〜翌8時JST)でなければその場で届ける。
+// 夜間なら何もせず、翌朝の予定実行(deliverQuietHourNotifications)に任せ、二重送信を避ける。
+export async function notifyIfImmediate(
+  db: Db,
+  config: WebPushConfig | undefined,
+  recipientUserId: string,
+  kind: "chore_recorded" | "thanks_received",
+  occurredAt: Date,
+): Promise<void> {
+  if (!config) {
+    return;
+  }
+  if (resolveDeliveryTime(occurredAt).getTime() !== occurredAt.getTime()) {
+    return;
+  }
+  await notifyUser(db, config, recipientUserId, kind);
 }
 
 // 直前の週が閉じたペアそれぞれへ、週次カードを生成(未生成なら)し、購読しているメンバーへ届ける。
