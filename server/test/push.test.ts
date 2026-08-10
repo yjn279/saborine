@@ -14,7 +14,7 @@ import type { NotificationKind } from "../src/push/notifications.js";
 import { sendWebPush } from "../src/push/send.js";
 import type { PushSubscription, WebPushConfig } from "../src/push/send.js";
 import { base64UrlDecode, base64UrlEncode, generateVapidKeyPair } from "../src/push/vapid.js";
-import { MORNING_CATCH_UP_CRON, WEEKLY_CARD_CRON, runScheduled } from "../src/scheduled.js";
+import { MORNING_CATCH_UP_CRON, WEEKLY_CARD_CRON, notifyIfImmediate, runScheduled } from "../src/scheduled.js";
 import { getPreviousWeekRange } from "../src/domain/weekly-card.js";
 
 // テスト用に、実在の購読と同じ形(P-256のECDH公開鍵+16バイトの認証シークレット)を作る。
@@ -132,6 +132,40 @@ describe("22時〜翌8時の繰り越し", () => {
     const occurredAt = new Date("2024-01-10T18:00:00.000Z");
     const delivered = resolveDeliveryTime(occurredAt);
     expect(delivered).toEqual(new Date("2024-01-10T23:00:00.000Z"));
+  });
+});
+
+describe("記録・ありがとうの直後のお知らせ(notifyIfImmediate)", () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("夜間(22時〜翌8時JST)でなければその場で届き、夜間なら届かない", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+    const subscription = await createFakeSubscription("https://push.example.com/immediate");
+    await db.execute({
+      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
+      args: [crypto.randomUUID(), account.userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth],
+    });
+
+    let sendCount = 0;
+    globalThis.fetch = (async () => {
+      sendCount += 1;
+      return new Response(null, { status: 201 });
+    }) as typeof fetch;
+
+    const vapidKeyPair = await generateVapidKeyPair();
+    const config: WebPushConfig = { vapidKeyPair, subject: "mailto:test@example.com" };
+
+    // 2024-01-10T06:00:00Z = 2024-01-10 15:00 JST(日中)。その場で届く。
+    await notifyIfImmediate(db, config, account.userId, "chore_recorded", new Date("2024-01-10T06:00:00.000Z"));
+    expect(sendCount).toBe(1);
+
+    // 2024-01-10T14:00:00Z = 2024-01-10 23:00 JST(夜間)。届かず、翌朝の予定実行に任される。
+    await notifyIfImmediate(db, config, account.userId, "thanks_received", new Date("2024-01-10T14:00:00.000Z"));
+    expect(sendCount).toBe(1);
   });
 });
 
@@ -313,6 +347,59 @@ describe("予定実行(Cron Triggers)", () => {
     expect(sendCount).toBe(1);
     const cardRows = await db.execute({
       sql: "SELECT story_text FROM weekly_cards WHERE pair_id = ? AND week_start = ?",
+      args: [account.pairId, previousWeek.start.toISOString()],
+    });
+    expect(cardRows.rows).toHaveLength(1);
+  });
+
+  it("ひとつの購読への送信が失敗しても、もう一方の購読への送信は行われ、予定実行全体は失敗しない", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+    await db.execute({
+      sql: "UPDATE pairs SET established_at = CURRENT_TIMESTAMP WHERE id = ?",
+      args: [account.pairId],
+    });
+    const now = new Date();
+    const previousWeek = getPreviousWeekRange(now);
+    await db.execute({
+      sql: "INSERT INTO chore_logs (id, pair_id, user_id, chore_type, created_at) VALUES (?, ?, ?, ?, ?)",
+      args: [
+        crypto.randomUUID(),
+        account.pairId,
+        account.userId,
+        "お皿洗い",
+        formatStoredTimestamp(new Date(previousWeek.start.getTime() + 60_000)),
+      ],
+    });
+
+    const brokenSubscription = await createFakeSubscription("https://push.example.com/broken");
+    const workingSubscription = await createFakeSubscription("https://push.example.com/working");
+    await db.execute({
+      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
+      args: [crypto.randomUUID(), account.userId, brokenSubscription.endpoint, brokenSubscription.keys.p256dh, brokenSubscription.keys.auth],
+    });
+    await db.execute({
+      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
+      args: [crypto.randomUUID(), account.userId, workingSubscription.endpoint, workingSubscription.keys.p256dh, workingSubscription.keys.auth],
+    });
+
+    let workingSendCount = 0;
+    globalThis.fetch = (async (url: RequestInfo | URL) => {
+      if (String(url) === brokenSubscription.endpoint) {
+        throw new Error("ネットワークに到達できません");
+      }
+      workingSendCount += 1;
+      return new Response(null, { status: 201 });
+    }) as typeof fetch;
+
+    const vapidKeyPair = await generateVapidKeyPair();
+    await expect(
+      runScheduled(db, { vapidKeyPair, subject: "mailto:test@example.com" }, WEEKLY_CARD_CRON, now),
+    ).resolves.toBeUndefined();
+
+    expect(workingSendCount).toBe(1);
+    const cardRows = await db.execute({
+      sql: "SELECT id FROM weekly_cards WHERE pair_id = ? AND week_start = ?",
       args: [account.pairId, previousWeek.start.toISOString()],
     });
     expect(cardRows.rows).toHaveLength(1);
