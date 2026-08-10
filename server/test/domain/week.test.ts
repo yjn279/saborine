@@ -6,6 +6,7 @@ import {
   getWeekStart,
   isFirstDayOfMonthJst,
   jstCalendarDay,
+  jstDayNumber,
 } from "../../src/domain/week.js";
 
 // 2023-01-01はJSTで日曜日。21:00 JST = 12:00 UTC(同日)。
@@ -71,5 +72,13 @@ describe("月の区切り", () => {
     expect(jstCalendarDay(new Date("2024-01-10T14:30:00.000Z"))).toBe("2024-01-10");
     // 2024-01-11 00:30 JST = 2024-01-10T15:30:00Z(日付が変わる)
     expect(jstCalendarDay(new Date("2024-01-10T15:30:00.000Z"))).toBe("2024-01-11");
+  });
+
+  it("日本時間の通し日数は、午前0時ちょうどに1増える", () => {
+    // 2024-01-10 23:59:59.999 JST = 2024-01-10T14:59:59.999Z
+    const beforeMidnight = jstDayNumber(new Date("2024-01-10T14:59:59.999Z"));
+    // 2024-01-11 00:00:00.000 JST = 2024-01-10T15:00:00.000Z
+    const afterMidnight = jstDayNumber(new Date("2024-01-10T15:00:00.000Z"));
+    expect(afterMidnight).toBe(beforeMidnight + 1);
   });
 });
