@@ -7,6 +7,7 @@ import { useIdentity } from "../src/auth/useIdentity";
 import type { Identity } from "../src/auth/identity";
 import { BalanceGauge } from "../src/components/BalanceGauge";
 import { ThanksButton } from "../src/components/ThanksButton";
+import { NudgeBounce } from "../src/components/saborine/NudgeBounce";
 import { Saborine } from "../src/components/saborine/Saborine";
 import type { SaborinePose } from "../src/components/saborine/types";
 import { commonStyles } from "../src/styles/common";
@@ -91,12 +92,14 @@ export default function Home() {
         accessibilityRole="button"
         accessibilityLabel="サボリーヌになにかしてくれた?ときく"
       >
-        <Saborine
-          pose={pose}
-          unlockedGestures={homeState.myAffection.gestures}
-          evolutionStage={homeState.saborine.evolutionStage}
-          evolutionLineage={homeState.saborine.evolutionLineage}
-        />
+        <NudgeBounce active={homeState.saborine.serifKind === "nudge"}>
+          <Saborine
+            pose={pose}
+            unlockedGestures={homeState.myAffection.gestures}
+            evolutionStage={homeState.saborine.evolutionStage}
+            evolutionLineage={homeState.saborine.evolutionLineage}
+          />
+        </NudgeBounce>
       </Pressable>
       <Text style={styles.serif}>{homeState.saborine.serif}</Text>
 
