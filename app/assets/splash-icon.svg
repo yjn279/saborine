@@ -1,0 +1,19 @@
+<!--
+  起動画面の絵の元。背景は透明にし、起動画面の白地の上に犬だけが乗るようにする。
+  形と色は app/src/components/saborine/poses.tsx のふつうの姿と同じ。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="1024" height="1024">
+  <ellipse cx="38" cy="83" rx="5" ry="7" fill="#F6E1BE" />
+  <ellipse cx="62" cy="83" rx="5" ry="7" fill="#F6E1BE" />
+  <ellipse cx="50" cy="68" rx="22" ry="16" fill="#F6E1BE" />
+  <path d="M71 62 C 82 58, 84 46, 76 40" stroke="#E3AE74" stroke-width="6" stroke-linecap="round" fill="none" />
+  <ellipse cx="35" cy="31" rx="7" ry="12" fill="#E3AE74" transform="rotate(-18 35 31)" />
+  <ellipse cx="65" cy="31" rx="7" ry="12" fill="#E3AE74" transform="rotate(18 65 31)" />
+  <circle cx="50" cy="42" r="18" fill="#F6E1BE" />
+  <ellipse cx="38" cy="46" rx="3.5" ry="2.2" fill="#F3AFAE" />
+  <ellipse cx="62" cy="46" rx="3.5" ry="2.2" fill="#F3AFAE" />
+  <circle cx="43" cy="40" r="2.2" fill="#6B5237" />
+  <circle cx="57" cy="40" r="2.2" fill="#6B5237" />
+  <ellipse cx="50" cy="47" rx="2.4" ry="1.8" fill="#6B5237" />
+  <path d="M46 51 Q50 53 54 51" stroke="#6B5237" stroke-width="1.6" stroke-linecap="round" fill="none" />
+</svg>
