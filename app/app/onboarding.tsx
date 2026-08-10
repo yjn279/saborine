@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { apiRequest, ApiError } from "../src/api/client";
-import type { RegisterAccountRequest, RegisterAccountResponse } from "../src/api/types";
-import { createIdentity, saveIdentity, type Identity } from "../src/auth/identity";
+import { ApiError } from "../src/api/client";
+import { registerAccount } from "../src/api/account";
+import { registerIdentity, retrySaveIdentity, type IdentityRegistrationResult } from "../src/auth/register";
+import type { Identity } from "../src/auth/identity";
 import { Saborine } from "../src/components/saborine/Saborine";
 import { InAppBanner } from "../src/components/InAppBanner";
 import { subscribeToPush } from "../src/push/subscribe";
@@ -25,46 +26,52 @@ export default function Onboarding() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [showBanner, setShowBanner] = useState(false);
+  // サーバーへの登録は成功したが端末保存だけ失敗したときの、保存待ちの身分証。
+  // 残っている間は、サーバーへ再度リクエストを送らず保存だけをやり直す。
+  const [pendingIdentity, setPendingIdentity] = useState<Identity | null>(null);
 
   const trimmedName = displayName.trim();
   const canSubmit = trimmedName.length > 0 && !submitting;
+  const canRetrySave = !!pendingIdentity && !submitting;
+
+  const applyResult = (result: IdentityRegistrationResult) => {
+    if (result.status === "api-error") {
+      setErrorMessage(result.error instanceof ApiError ? result.error.message : "とうろくに しっぱいしました");
+      setSubmitting(false);
+      return;
+    }
+    if (result.status === "save-error") {
+      setPendingIdentity(result.identity);
+      setErrorMessage("とうろくは できたけど、このたんまつに ほぞんできなかったよ");
+      setSubmitting(false);
+      return;
+    }
+    setPendingIdentity(null);
+    setIdentity(result.identity);
+    setStep("welcome");
+    setSubmitting(false);
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
     setErrorMessage(null);
-    const newIdentity = createIdentity();
-
-    try {
-      const request: RegisterAccountRequest = {
+    const result = await registerIdentity((newIdentity) =>
+      registerAccount({
         displayName: trimmedName,
         userId: newIdentity.userId,
         secret: newIdentity.secret,
-      };
-      await apiRequest<RegisterAccountResponse>("/api/account", {
-        method: "POST",
-        body: request,
-      });
-    } catch (error) {
-      setErrorMessage(error instanceof ApiError ? error.message : "とうろくに しっぱいしました");
-      setSubmitting(false);
+      }),
+    );
+    applyResult(result);
+  };
+
+  const handleRetrySave = async () => {
+    if (!pendingIdentity || submitting) {
       return;
     }
-
-    // 登録自体はサーバーで成功しているため、保存の失敗を「登録失敗」として扱わない。
-    // 保存できないまま次へ進むと合言葉を失って孤立するため、区別してこの場にとどめる。
-    try {
-      await saveIdentity(newIdentity);
-    } catch {
-      setErrorMessage(
-        "とうろくは できたけど、このたんまつに ほぞんできなかったよ。もういちど おためしください",
-      );
-      setSubmitting(false);
-      return;
-    }
-
-    setIdentity(newIdentity);
-    setStep("welcome");
-    setSubmitting(false);
+    setSubmitting(true);
+    setErrorMessage(null);
+    applyResult(await retrySaveIdentity(pendingIdentity));
   };
 
   useEffect(() => {
@@ -128,19 +135,24 @@ export default function Onboarding() {
         onChangeText={setDisplayName}
         placeholder="おなまえ"
         maxLength={DISPLAY_NAME_MAX_LENGTH}
-        editable={!submitting}
+        editable={!submitting && !pendingIdentity}
         autoFocus
       />
       {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
       <Pressable
-        style={[commonStyles.primaryButton, !canSubmit && styles.buttonDisabled]}
-        onPress={handleSubmit}
-        disabled={!canSubmit}
+        style={[
+          commonStyles.primaryButton,
+          !(pendingIdentity ? canRetrySave : canSubmit) && styles.buttonDisabled,
+        ]}
+        onPress={pendingIdentity ? handleRetrySave : handleSubmit}
+        disabled={!(pendingIdentity ? canRetrySave : canSubmit)}
       >
         {submitting ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={commonStyles.primaryButtonText}>はじめる</Text>
+          <Text style={commonStyles.primaryButtonText}>
+            {pendingIdentity ? "もういちど ほぞんする" : "はじめる"}
+          </Text>
         )}
       </Pressable>
     </View>

@@ -4,7 +4,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ApiError } from "../../src/api/client";
 import { fetchHomeState, sendThanks, type HomeState } from "../../src/api/home";
 import { acceptInvite, fetchInvitePreview, type InvitePreview } from "../../src/api/invite";
-import { createIdentity, loadIdentity, saveIdentity, type Identity } from "../../src/auth/identity";
+import { loadIdentity, type Identity } from "../../src/auth/identity";
+import { registerIdentity, retrySaveIdentity, type IdentityRegistrationResult } from "../../src/auth/register";
 import { LetterCard } from "../../src/components/LetterCard";
 import { Saborine } from "../../src/components/saborine/Saborine";
 import { ThanksButton } from "../../src/components/ThanksButton";
@@ -27,6 +28,10 @@ export default function Join() {
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  // 受諾は成功したが端末保存だけ失敗したときの、保存待ちの身分証。残っている間は、
+  // サーバーへ再度受諾リクエストを送らず(定員はすでに埋まっているため)保存だけを
+  // やり直す。
+  const [pendingIdentity, setPendingIdentity] = useState<Identity | null>(null);
 
   const [joinedIdentity, setJoinedIdentity] = useState<Identity | null>(null);
   const [homeState, setHomeState] = useState<HomeState | null>(null);
@@ -62,6 +67,31 @@ export default function Join() {
 
   const trimmedName = displayName.trim();
   const canSubmit = trimmedName.length > 0 && !submitting && !!token;
+  const canRetrySave = !!pendingIdentity && !submitting;
+
+  const applyJoinResult = async (result: IdentityRegistrationResult) => {
+    if (result.status === "api-error") {
+      setJoinError(result.error instanceof ApiError ? result.error.message : "なかまに なれませんでした");
+      setSubmitting(false);
+      return;
+    }
+    if (result.status === "save-error") {
+      setPendingIdentity(result.identity);
+      setJoinError("なかまには なれたけど、このたんまつに ほぞんできなかったよ");
+      setSubmitting(false);
+      return;
+    }
+
+    setPendingIdentity(null);
+    setJoinedIdentity(result.identity);
+    try {
+      const state = await fetchHomeState(result.identity);
+      setHomeState(state);
+    } catch {
+      // ホームの状態が取れなくても、登録自体は成功しているので先へ進める。
+    }
+    setSubmitting(false);
+  };
 
   const handleJoin = async () => {
     if (!token || !canSubmit) {
@@ -69,40 +99,23 @@ export default function Join() {
     }
     setSubmitting(true);
     setJoinError(null);
-    const identity = createIdentity();
-
-    try {
-      await acceptInvite(token, {
+    const result = await registerIdentity((identity) =>
+      acceptInvite(token, {
         displayName: trimmedName,
         userId: identity.userId,
         secret: identity.secret,
-      });
-    } catch (error) {
-      setJoinError(error instanceof ApiError ? error.message : "なかまに なれませんでした");
-      setSubmitting(false);
+      }),
+    );
+    await applyJoinResult(result);
+  };
+
+  const handleRetrySave = async () => {
+    if (!pendingIdentity || submitting) {
       return;
     }
-
-    // 受諾自体はサーバーで成功しているため、保存の失敗を「なかまになれなかった」とは
-    // 区別する。保存できないまま先へ進むと合言葉を失って孤立するため、ここにとどめる。
-    try {
-      await saveIdentity(identity);
-    } catch {
-      setJoinError(
-        "なかまには なれたけど、このたんまつに ほぞんできなかったよ。もういちど おためしください",
-      );
-      setSubmitting(false);
-      return;
-    }
-
-    setJoinedIdentity(identity);
-    try {
-      const state = await fetchHomeState(identity);
-      setHomeState(state);
-    } catch {
-      // ホームの状態が取れなくても、登録自体は成功しているので先へ進める。
-    }
-    setSubmitting(false);
+    setSubmitting(true);
+    setJoinError(null);
+    await applyJoinResult(await retrySaveIdentity(pendingIdentity));
   };
 
   const handleThanks = async () => {
@@ -193,19 +206,24 @@ export default function Join() {
         onChangeText={setDisplayName}
         placeholder="おなまえ"
         maxLength={DISPLAY_NAME_MAX_LENGTH}
-        editable={!submitting}
+        editable={!submitting && !pendingIdentity}
         autoFocus
       />
       {joinError ? <Text style={commonStyles.error}>{joinError}</Text> : null}
       <Pressable
-        style={[commonStyles.primaryButton, !canSubmit && styles.buttonDisabled]}
-        onPress={handleJoin}
-        disabled={!canSubmit}
+        style={[
+          commonStyles.primaryButton,
+          !(pendingIdentity ? canRetrySave : canSubmit) && styles.buttonDisabled,
+        ]}
+        onPress={pendingIdentity ? handleRetrySave : handleJoin}
+        disabled={!(pendingIdentity ? canRetrySave : canSubmit)}
       >
         {submitting ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={commonStyles.primaryButtonText}>さとおやに なる</Text>
+          <Text style={commonStyles.primaryButtonText}>
+            {pendingIdentity ? "もういちど ほぞんする" : "さとおやに なる"}
+          </Text>
         )}
       </Pressable>
     </View>
