@@ -183,7 +183,7 @@ try {
     `| 4週間続く | ${retained}/${retainedEligible}組 | ${ratio(retained, retainedEligible)} | ${TARGETS.retained * 100}% | ${judge(retained, retainedEligible, TARGETS.retained)} |`,
   );
   console.log("");
-  const notifiableUsers = new Set(subscriptions.rows.map((row) => row.user_id)).size;
+  const notifiableUsers = subscriptions.rows.length;
   const totalUsers = users.rows.length;
   console.log(
     `お知らせが届く人の割合: ${ratio(notifiableUsers, totalUsers)}(${notifiableUsers}/${totalUsers}人)`,
