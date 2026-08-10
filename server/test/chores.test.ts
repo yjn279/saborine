@@ -144,6 +144,20 @@ describe("ありがとう", () => {
     expect(res.status).toBe(404);
   });
 
+  it("ペア解除でキャラクター行が消えたあとに送ったありがとうも、500にせず受け付ける", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerPair(db, "彩花", "大樹");
+    const { body } = await recordChore(db, a, "掃除");
+
+    await db.execute({ sql: "DELETE FROM characters WHERE pair_id = ?", args: [a.pairId] });
+
+    const res = await createApp(db).request(`/api/chores/${body.id}/thanks`, {
+      method: "POST",
+      headers: { Authorization: b.authorization },
+    });
+    expect(res.status).toBe(201);
+  });
+
   it("ありがとうが1件増えると、なつき度と成長ポイントが式どおりに動く", async () => {
     const db = await createTestDb();
     const { a, b } = await registerPair(db, "彩花", "大樹");

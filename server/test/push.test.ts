@@ -446,6 +446,64 @@ describe("予定実行(Cron Triggers)", () => {
     expect(Number(character.rows[0]?.total_growth_points)).toBe(0);
   });
 
+  it("月次進化の予定実行が同じ時刻で二重に走っても、進化とお知らせは二重にならない", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerTestPair(db, "彩花", "大樹");
+    await db.execute({
+      sql: "UPDATE characters SET total_growth_points = 25 WHERE pair_id = ?",
+      args: [a.pairId],
+    });
+
+    // 1月中の5日間、aとbが同じ日に互いへありがとうを送り合う(調和系で進化する条件を整える)。
+    for (let day = 1; day <= 5; day += 1) {
+      const createdAt = `2024-01-0${day} 00:00:00`;
+      for (const member of [a, b]) {
+        const choreLogId = crypto.randomUUID();
+        await db.execute({
+          sql: "INSERT INTO chore_logs (id, pair_id, user_id, chore_type, created_at) VALUES (?, ?, ?, ?, ?)",
+          args: [choreLogId, a.pairId, member.userId, "掃除", createdAt],
+        });
+        await db.execute({
+          sql: "INSERT INTO thanks (id, chore_log_id, user_id, created_at) VALUES (?, ?, ?, ?)",
+          args: [crypto.randomUUID(), choreLogId, member.userId, createdAt],
+        });
+      }
+    }
+
+    const subscriptionA = await createFakeSubscription("https://push.example.com/growth-dup-a");
+    const subscriptionB = await createFakeSubscription("https://push.example.com/growth-dup-b");
+    await db.execute({
+      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
+      args: [crypto.randomUUID(), a.userId, subscriptionA.endpoint, subscriptionA.keys.p256dh, subscriptionA.keys.auth],
+    });
+    await db.execute({
+      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
+      args: [crypto.randomUUID(), b.userId, subscriptionB.endpoint, subscriptionB.keys.p256dh, subscriptionB.keys.auth],
+    });
+
+    let sendCount = 0;
+    globalThis.fetch = (async () => {
+      sendCount += 1;
+      return new Response(null, { status: 201 });
+    }) as typeof fetch;
+
+    const vapidKeyPair = await generateVapidKeyPair();
+    const config = { vapidKeyPair, subject: "mailto:test@example.com" };
+    // 2024-02-01 00:00 JST = 2024-01-31T15:00:00Z。同じ時刻の予定実行が重複して走った状況を再現する。
+    const now = new Date("2024-01-31T15:00:00.000Z");
+    await Promise.all([
+      runScheduled(db, config, MORNING_CATCH_UP_CRON, now),
+      runScheduled(db, config, MORNING_CATCH_UP_CRON, now),
+    ]);
+
+    expect(sendCount).toBe(2);
+    const character = await db.execute({
+      sql: "SELECT evolution_stage FROM characters WHERE pair_id = ?",
+      args: [a.pairId],
+    });
+    expect(Number(character.rows[0]?.evolution_stage)).toBe(1);
+  });
+
   it("当月の成長ポイントが20未満なら進化せず、成長のお知らせも届かない", async () => {
     const db = await createTestDb();
     const { a } = await registerTestPair(db, "彩花", "大樹");
