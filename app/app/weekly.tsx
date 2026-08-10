@@ -6,7 +6,7 @@ import { fetchWeeklyCard, type WeeklyCard } from "../src/api/weekly";
 import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
 import { Saborine } from "../src/components/saborine/Saborine";
-import { shareOrCopy } from "../src/share";
+import { appendAppLink, shareOrCopy, welcomeUrl } from "../src/share";
 import { commonStyles } from "../src/styles/common";
 
 // 週次カード画面。絵が主役、本文は5行以内(server/src/domain/weekly-card.ts)。
@@ -42,7 +42,11 @@ export default function Weekly() {
   }, [identity]);
 
   const storyLines = card ? card.storyText.split("\n") : [];
-  const shareText = storyLines.length > 0 ? `サボリーヌの週次カード\n${storyLines.join("\n")}` : "";
+  // 受け取った人がたどり着けるよう、物語のあとに紹介ページへの案内を添える。
+  const shareText =
+    storyLines.length > 0
+      ? appendAppLink(`サボリーヌの週次カード\n${storyLines.join("\n")}`, welcomeUrl())
+      : "";
 
   const handleShare = async () => {
     if (!shareText) {

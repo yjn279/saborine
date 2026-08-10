@@ -23,6 +23,24 @@ export async function shareOrCopy(content: ShareContent): Promise<boolean> {
   return false;
 }
 
+// 共有した文を受け取った人が、サボリーヌにたどり着けるようにするための案内。
+// 週次カードは、ふたりの外にいる人がこのアプリを知る数少ない入口である
+// (docs/mvp.md ジャーニーA「共有された週次カード自体が広告になる」)。
+// 行き先は紹介ページとし、いきなり名前の入力欄に着かないようにする。
+const INVITATION_LINE = "ふたりで いっぴきの犬を そだてるアプリ、サボリーヌ";
+
+export function appendAppLink(text: string, welcomeUrl: string): string {
+  return `${text}\n\n${INVITATION_LINE}\n${welcomeUrl}`;
+}
+
+// いま開いているアプリの紹介ページのURL。Web以外では場所を持たないため空を返す。
+export function welcomeUrl(): string {
+  if (Platform.OS !== "web" || typeof window === "undefined") {
+    return "";
+  }
+  return `${window.location.origin}/welcome`;
+}
+
 // Webのクリップボードへ本文をコピーする。コピーできたときだけtrueを返す。
 export async function copyToClipboard(text: string): Promise<boolean> {
   if (Platform.OS === "web" && window.navigator.clipboard) {
