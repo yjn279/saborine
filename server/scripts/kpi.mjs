@@ -5,7 +5,7 @@
 //   node server/scripts/kpi.mjs "$(turso db show saborine --url)?authToken=$(turso db tokens create saborine)"
 //
 // 出さないもの: 「どちらが何回やったか」を比べる集計。プロダクトが持たないものは事業指標でも
-// 作らない(docs/business.md)。数えるのはすべてペア単位である。
+// 作らない(docs/business.md)。数えるのはペア単位か利用者単位であり、個人どうしを比べることはしない。
 
 import { createClient } from "@libsql/client";
 
@@ -51,7 +51,7 @@ if (!url) {
 const client = createClient({ url });
 
 try {
-  const [pairs, users, chores, thanks] = await Promise.all([
+  const [pairs, users, chores, thanks, subscriptions] = await Promise.all([
     client.execute("SELECT id, established_at, created_at FROM pairs"),
     client.execute("SELECT id, pair_id, created_at FROM users ORDER BY created_at, rowid"),
     client.execute("SELECT pair_id, user_id, created_at FROM chore_logs"),
@@ -59,6 +59,7 @@ try {
       `SELECT c.pair_id AS pair_id, t.user_id AS user_id, t.created_at AS created_at
        FROM thanks t JOIN chore_logs c ON c.id = t.chore_log_id`,
     ),
+    client.execute("SELECT DISTINCT user_id FROM push_subscriptions"),
   ]);
 
   if (pairs.rows.length === 0) {
@@ -180,6 +181,12 @@ try {
   );
   console.log(
     `| 4週間続く | ${retained}/${retainedEligible}組 | ${ratio(retained, retainedEligible)} | ${TARGETS.retained * 100}% | ${judge(retained, retainedEligible, TARGETS.retained)} |`,
+  );
+  console.log("");
+  const notifiableUsers = new Set(subscriptions.rows.map((row) => row.user_id)).size;
+  const totalUsers = users.rows.length;
+  console.log(
+    `お知らせが届く人の割合: ${ratio(notifiableUsers, totalUsers)}(${notifiableUsers}/${totalUsers}人)`,
   );
   console.log("");
   console.log(
