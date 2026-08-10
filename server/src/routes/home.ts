@@ -79,35 +79,37 @@ export function createHomeRoutes() {
 
     // 息ぴったりゲージ: 直近7日にペアの各記録へ届いたありがとうの数から、割合だけを求める。
     const gaugeWindowStart = new Date(now.getTime() - GAUGE_WINDOW_MS);
+    const [thanksResult, thanksExists] = await Promise.all([
+      chorePairResult.rows.length > 0
+        ? db.execute({
+            sql: `SELECT chore_logs.user_id AS recipient
+                  FROM thanks
+                  JOIN chore_logs ON thanks.chore_log_id = chore_logs.id
+                  WHERE chore_logs.pair_id = ? AND thanks.created_at >= ?`,
+            args: [user.pairId, formatStoredTimestamp(gaugeWindowStart)],
+          })
+        : null,
+      partnerLatestChoreLog
+        ? db.execute({
+            sql: "SELECT id FROM thanks WHERE chore_log_id = ?",
+            args: [partnerLatestChoreLog.id],
+          })
+        : null,
+    ]);
+
     let myRecentThanksCount = 0;
     let partnerRecentThanksCount = 0;
-    if (chorePairResult.rows.length > 0) {
-      const thanksResult = await db.execute({
-        sql: `SELECT chore_logs.user_id AS recipient
-              FROM thanks
-              JOIN chore_logs ON thanks.chore_log_id = chore_logs.id
-              WHERE chore_logs.pair_id = ? AND thanks.created_at >= ?`,
-        args: [user.pairId, formatStoredTimestamp(gaugeWindowStart)],
-      });
-      for (const row of thanksResult.rows) {
-        const recipient = String(row.recipient);
-        if (recipient === user.id) {
-          myRecentThanksCount += 1;
-        } else if (recipient === partnerId) {
-          partnerRecentThanksCount += 1;
-        }
+    for (const row of thanksResult?.rows ?? []) {
+      const recipient = String(row.recipient);
+      if (recipient === user.id) {
+        myRecentThanksCount += 1;
+      } else if (recipient === partnerId) {
+        partnerRecentThanksCount += 1;
       }
     }
     const balanceGauge = calcBalanceGauge(myRecentThanksCount, partnerRecentThanksCount);
 
-    let partnerThanked = false;
-    if (partnerLatestChoreLog) {
-      const thanksExists = await db.execute({
-        sql: "SELECT id FROM thanks WHERE chore_log_id = ?",
-        args: [partnerLatestChoreLog.id],
-      });
-      partnerThanked = thanksExists.rows.length > 0;
-    }
+    const partnerThanked = (thanksExists?.rows.length ?? 0) > 0;
 
     const hasRecordedRecently =
       myLastRecordAt !== null && now.getTime() - myLastRecordAt.getTime() < RECENT_RECORD_WINDOW_MS;
