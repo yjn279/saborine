@@ -8,7 +8,9 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.yjn279.saborine",
+      "buildNumber": "1",
+      "supportsTablet": false
     },
     "web": {
       "favicon": "./assets/favicon.png",
