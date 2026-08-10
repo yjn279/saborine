@@ -53,10 +53,10 @@ export default function Home() {
       isSupported: isPushSupported,
       hasSubscription: hasPushSubscription,
       isNotificationsEnabled: () => fetchSettings(identity).then((settings) => settings.notificationsEnabled),
-      subscribe: () => subscribeToPush(identity).then(() => undefined),
+      subscribe: () => subscribeToPush(identity).then((result) => result.subscribed),
     })()
       .then((result) => {
-        if (result === "unsupported") {
+        if (result === "unsupported" || result === "failed") {
           setPushBannerVisible(true);
         }
       })

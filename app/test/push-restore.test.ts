@@ -11,6 +11,7 @@ function createDeps(overrides: Partial<RestorePushDeps> = {}): RestorePushDeps &
     subscribeCalls: 0,
     subscribe: async () => {
       deps.subscribeCalls += 1;
+      return true;
     },
     ...overrides,
   };
@@ -100,6 +101,13 @@ describe("購読を作り直すかどうかの判断(createPushRestorer)", () =>
     await expect(restore()).resolves.toBe("skipped");
     expect(isSupportedCalls).toBe(1);
     expect(deps.subscribeCalls).toBe(1);
+  });
+
+  it("購読の実行に失敗したときは、failedを返す", async () => {
+    const deps = createDeps({ subscribe: async () => false });
+    const restore = createPushRestorer(deps);
+
+    await expect(restore()).resolves.toBe("failed");
   });
 
   it("設定の取得が失敗したときは、その失敗をそのまま伝え、購読したことにしない", async () => {

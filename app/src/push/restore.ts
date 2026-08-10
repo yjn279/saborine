@@ -6,14 +6,15 @@
 export type RestorePushResult =
   // unsupported: この環境はお知らせに対応していない。skipped: 対応してはいるが、
   // すでに購読済み・設定がオフ・2回目以降の呼び出しのいずれかで、何もしなかった。
-  // subscribed: 3つの条件がそろい、購読を実行した。
-  "unsupported" | "skipped" | "subscribed";
+  // subscribed: 3つの条件がそろい、購読を実行できた。failed: 3つの条件はそろったが、
+  // 購読の実行(許可が拒まれた・作成やサーバー登録に失敗した)ができなかった。
+  "unsupported" | "skipped" | "subscribed" | "failed";
 
 export interface RestorePushDeps {
   isSupported: () => boolean;
   hasSubscription: () => Promise<boolean>;
   isNotificationsEnabled: () => Promise<boolean>;
-  subscribe: () => Promise<void>;
+  subscribe: () => Promise<boolean>;
 }
 
 export type RestorePush = () => Promise<RestorePushResult>;
@@ -38,7 +39,6 @@ export function createPushRestorer(deps: RestorePushDeps): RestorePush {
     if (!(await deps.isNotificationsEnabled())) {
       return "skipped";
     }
-    await deps.subscribe();
-    return "subscribed";
+    return (await deps.subscribe()) ? "subscribed" : "failed";
   };
 }
