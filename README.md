@@ -58,6 +58,33 @@ npm run typecheck  # 型チェック（app・server それぞれ）
 npm test           # 自動テスト（いまはserverのみ）
 ```
 
+## アイコンを作り直す
+
+アイコンの元は `app/assets/icon.svg`（ホーム画面・App Store・SNS用のサボリーヌの顔）と `app/assets/splash-icon.svg`（起動画面用の全身、背景は透明）である。形と色は `app/src/components/saborine/poses.tsx` のふつうの姿から取っており、アプリの中のサボリーヌと同じ顔にしている。
+
+元を直したら、次の手順でPNGを作り直す。Google Chrome で描いて、macOS の `sips` で縮める。
+
+```sh
+# 1. 顔（背景あり）を1024pxで描く
+printf '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;width:1024px;height:1024px;overflow:hidden}svg{display:block}</style>' > /tmp/icon.html
+cat app/assets/icon.svg >> /tmp/icon.html
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --disable-gpu \
+  --window-size=1024,1024 --screenshot=app/assets/icon.png file:///tmp/icon.html
+
+# 2. 全身（背景は透明）を1024pxで描く
+printf '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;width:1024px;height:1024px;overflow:hidden;background:transparent}svg{display:block}</style>' > /tmp/splash.html
+cat app/assets/splash-icon.svg >> /tmp/splash.html
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --disable-gpu \
+  --window-size=1024,1024 --default-background-color=00000000 \
+  --screenshot=app/assets/splash-icon.png file:///tmp/splash.html
+
+# 3. 顔から残りの大きさを作る
+cp app/assets/icon.png app/assets/favicon.png            && sips -Z 48  app/assets/favicon.png
+cp app/assets/icon.png app/public/icons/icon-192.png     && sips -Z 192 app/public/icons/icon-192.png
+cp app/assets/icon.png app/public/icons/icon-512.png     && sips -Z 512 app/public/icons/icon-512.png
+cp app/assets/icon.png app/public/icons/apple-touch-icon.png && sips -Z 180 app/public/icons/apple-touch-icon.png
+```
+
 ## 本番へ出す
 
 アプリとAPIは1つの Cloudflare Worker（名前は `saborine`）から同じ場所（オリジン）で配る。アプリを書き出してから Worker を出す、という2手を1つのコマンドにまとめてある。
