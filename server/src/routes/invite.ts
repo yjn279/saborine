@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.js";
-import { authMiddleware, hashSecret, isUserIdRegistered, validateRegistrationInput } from "../auth.js";
+import { authMiddleware, findRegisteredUser, hashSecret, validateRegistrationInput } from "../auth.js";
 import { LETTER_LINES } from "../domain/letter.js";
 
 const PAIR_MAX_MEMBERS = 2;
@@ -77,8 +77,9 @@ export function createInviteRoutes() {
     }
     const pairId = String(pair.id);
 
-    const [alreadyRegistered, memberCountResult, characterResult] = await Promise.all([
-      isUserIdRegistered(db, userId),
+    const secretHash = await hashSecret(secret);
+    const [existing, memberCountResult, characterResult] = await Promise.all([
+      findRegisteredUser(db, userId),
       db.execute({
         sql: "SELECT COUNT(*) as count FROM users WHERE pair_id = ?",
         args: [pairId],
@@ -88,8 +89,24 @@ export function createInviteRoutes() {
         args: [pairId],
       }),
     ]);
-    if (alreadyRegistered) {
-      return c.json({ error: "すでに登録されています" }, 409);
+    if (existing) {
+      // 同じ身分証での送り直し。前回の応答が届かなかった場合にここへ来る。
+      // 断ってしまうと、受諾は成立しているのに招待も使い切られており、
+      // 招待された人がどこにも入れなくなる。同じペアに入っていれば成功として返す。
+      if (existing.secretHash !== secretHash || existing.pairId !== pairId) {
+        return c.json({ error: "すでに登録されています" }, 409);
+      }
+      const acceptedCharacter = characterResult.rows[0];
+      if (!acceptedCharacter) {
+        return c.json({ error: "ペアが見つかりません" }, 404);
+      }
+      return c.json({
+        userId,
+        displayName: existing.displayName,
+        pairId,
+        characterId: String(acceptedCharacter.id),
+        characterName: String(acceptedCharacter.name),
+      });
     }
 
     const memberCount = Number(memberCountResult.rows[0]?.count ?? 0);
@@ -101,8 +118,6 @@ export function createInviteRoutes() {
     if (!character) {
       return c.json({ error: "ペアが見つかりません" }, 404);
     }
-
-    const secretHash = await hashSecret(secret);
 
     // 上のCOUNTでの確認とこのINSERTの間に、同時受諾やペア解除が割り込む余地があるため、
     // ペアがまだ存在することと人数の確認を同じ1文の中に埋め込み、pairsが消えた後の孤立

@@ -81,6 +81,57 @@ describe("表示名だけの登録", () => {
     // SHA-256の16進表現(32バイト=64文字)であることを確認し、単なる別形式の平文保存でないことを保証する。
     expect(storedHash).toMatch(/^[0-9a-f]{64}$/);
   });
+
+  it("同じ身分証で送り直しても、ペアは増えず前回の登録が返る", async () => {
+    // 応答が届かずクライアントがやり直したときの経路。ここで新しく作ってしまうと、
+    // 前回できたペアが誰も辿れないまま残り、サボリーヌが行方不明になる。
+    const db = await createTestDb();
+    const credential = createTestCredential();
+    const app = createApp(db);
+    const body = JSON.stringify({
+      displayName: "ゆうじ",
+      userId: credential.userId,
+      secret: credential.secret,
+    });
+    const send = () =>
+      app.request("/api/account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+
+    const first = await send();
+    expect(first.status).toBe(201);
+    const firstJson = (await first.json()) as { pairId: string; characterId: string };
+
+    const second = await send();
+    expect(second.status).toBe(200);
+    const secondJson = (await second.json()) as { pairId: string; characterId: string };
+    expect(secondJson.pairId).toBe(firstJson.pairId);
+    expect(secondJson.characterId).toBe(firstJson.characterId);
+
+    const pairs = await db.execute("SELECT COUNT(*) as count FROM pairs");
+    expect(Number(pairs.rows[0]?.count)).toBe(1);
+  });
+
+  it("同じIDでも合言葉が違えば断る", async () => {
+    const db = await createTestDb();
+    const credential = createTestCredential();
+    await registerTestAccount(db, "ゆうじ");
+    const owner = await db.execute("SELECT id FROM users LIMIT 1");
+
+    const res = await createApp(db).request("/api/account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "べつじん",
+        userId: String(owner.rows[0]?.id),
+        secret: credential.secret,
+      }),
+    });
+
+    expect(res.status).toBe(409);
+  });
 });
 
 describe("認証", () => {

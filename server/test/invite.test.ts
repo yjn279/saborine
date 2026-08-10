@@ -187,4 +187,42 @@ describe("招待の受諾", () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it("同じ身分証で受諾を送り直しても、締め出されず成功が返る", async () => {
+    // 応答が届かず招待された人がやり直したときの経路。ここで断ると、受諾は
+    // 成立しているのに招待は使い切られており、その人はどこにも入れなくなる。
+    const db = await createTestDb();
+    const inviter = await registerTestAccount(db, "彩花");
+    const letterRes = await createApp(db).request("/api/invite/letter", {
+      headers: { Authorization: inviter.authorization },
+    });
+    const { token } = (await letterRes.json()) as { token: string };
+
+    const invitee = createTestCredential();
+    const app = createApp(db);
+    const send = () =>
+      app.request(`/api/invite/${token}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          displayName: "大樹",
+          userId: invitee.userId,
+          secret: invitee.secret,
+        }),
+      });
+
+    expect((await send()).status).toBe(201);
+
+    const second = await send();
+    expect(second.status).toBe(200);
+    const body = (await second.json()) as { pairId: string; characterId: string };
+    expect(body.pairId).toBe(inviter.pairId);
+    expect(body.characterId).toBe(inviter.characterId);
+
+    const users = await db.execute({
+      sql: "SELECT id FROM users WHERE pair_id = ?",
+      args: [inviter.pairId],
+    });
+    expect(users.rows).toHaveLength(2);
+  });
 });

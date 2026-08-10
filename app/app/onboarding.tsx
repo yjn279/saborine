@@ -29,6 +29,8 @@ export default function Onboarding() {
   // サーバーへの登録は成功したが端末保存だけ失敗したときの、保存待ちの身分証。
   // 残っている間は、サーバーへ再度リクエストを送らず保存だけをやり直す。
   const [pendingIdentity, setPendingIdentity] = useState<Identity | null>(null);
+  // サーバーへの登録が失敗した回の身分証。やり直しは同じものを使う。
+  const [attemptedIdentity, setAttemptedIdentity] = useState<Identity | null>(null);
 
   const trimmedName = displayName.trim();
   const canSubmit = trimmedName.length > 0 && !submitting;
@@ -36,6 +38,9 @@ export default function Onboarding() {
 
   const applyResult = (result: IdentityRegistrationResult) => {
     if (result.status === "api-error") {
+      // やり直すときは同じ身分証で送り直す。作り直すと、実は成立していた前回の
+      // 登録が誰も辿れないまま残ってしまう。
+      setAttemptedIdentity(result.identity);
       setErrorMessage(result.error instanceof ApiError ? result.error.message : "とうろくに しっぱいしました");
       setSubmitting(false);
       return;
@@ -47,6 +52,7 @@ export default function Onboarding() {
       return;
     }
     setPendingIdentity(null);
+    setAttemptedIdentity(null);
     setIdentity(result.identity);
     setStep("welcome");
     setSubmitting(false);
@@ -55,12 +61,14 @@ export default function Onboarding() {
   const handleSubmit = async () => {
     setSubmitting(true);
     setErrorMessage(null);
-    const result = await registerIdentity((newIdentity) =>
-      registerAccount({
-        displayName: trimmedName,
-        userId: newIdentity.userId,
-        secret: newIdentity.secret,
-      }),
+    const result = await registerIdentity(
+      (newIdentity) =>
+        registerAccount({
+          displayName: trimmedName,
+          userId: newIdentity.userId,
+          secret: newIdentity.secret,
+        }),
+      attemptedIdentity ?? undefined,
     );
     applyResult(result);
   };
