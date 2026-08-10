@@ -125,10 +125,10 @@ export default function Join() {
   // 出迎え後: 相手の直近の記録があれば、その場で最初のありがとうを送れるようにする。
   if (joinedIdentity) {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         <Saborine pose="happy" />
-        <Text style={styles.title}>ようこそ、{trimmedName}さん</Text>
-        <Text style={styles.subtitle}>サボリーヌの もうひとりの さとおやに なったよ</Text>
+        <Text style={commonStyles.screenTitle}>ようこそ、{trimmedName}さん</Text>
+        <Text style={commonStyles.screenSubtitle}>サボリーヌの もうひとりの さとおやに なったよ</Text>
 
         {homeState?.partnerLatestChore ? (
           <View style={styles.partnerCard}>
@@ -145,8 +145,8 @@ export default function Join() {
 
         {joinError ? <Text style={commonStyles.error}>{joinError}</Text> : null}
 
-        <Pressable style={styles.button} onPress={() => router.replace("/")}>
-          <Text style={styles.buttonText}>ホームへ すすむ</Text>
+        <Pressable style={commonStyles.primaryButton} onPress={() => router.replace("/")}>
+          <Text style={commonStyles.primaryButtonText}>ホームへ すすむ</Text>
         </Pressable>
       </View>
     );
@@ -155,11 +155,11 @@ export default function Join() {
   // すでにこの端末で登録済みなら、身分証を上書きしないようフォームは出さない。
   if (existingIdentity) {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         <Saborine pose="normal" />
-        <Text style={styles.title}>この たんまつは もう とうろくずみだよ</Text>
-        <Pressable style={styles.button} onPress={() => router.replace("/")}>
-          <Text style={styles.buttonText}>ホームへ もどる</Text>
+        <Text style={commonStyles.screenTitle}>この たんまつは もう とうろくずみだよ</Text>
+        <Pressable style={commonStyles.primaryButton} onPress={() => router.replace("/")}>
+          <Text style={commonStyles.primaryButtonText}>ホームへ もどる</Text>
         </Pressable>
       </View>
     );
@@ -167,7 +167,7 @@ export default function Join() {
 
   if (previewError) {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         <Text style={commonStyles.error}>{previewError}</Text>
       </View>
     );
@@ -175,18 +175,18 @@ export default function Join() {
 
   if (!preview || existingIdentity === undefined) {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         <ActivityIndicator />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={commonStyles.screenContainer}>
       <Saborine pose="normal" />
       <LetterCard lines={preview.body} characterName={preview.characterName} />
 
-      <Text style={styles.subtitle}>あなたの おなまえを おしえてね</Text>
+      <Text style={commonStyles.screenSubtitle}>あなたの おなまえを おしえてね</Text>
       <TextInput
         style={styles.input}
         value={displayName}
@@ -198,34 +198,21 @@ export default function Join() {
       />
       {joinError ? <Text style={commonStyles.error}>{joinError}</Text> : null}
       <Pressable
-        style={[styles.button, !canSubmit && styles.buttonDisabled]}
+        style={[commonStyles.primaryButton, !canSubmit && styles.buttonDisabled]}
         onPress={handleJoin}
         disabled={!canSubmit}
       >
-        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>さとおやに なる</Text>}
+        {submitting ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={commonStyles.primaryButtonText}>さとおやに なる</Text>
+        )}
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-    padding: 24,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-  },
   input: {
     width: "100%",
     maxWidth: 280,
@@ -237,21 +224,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
   },
-  button: {
-    backgroundColor: "#f4a261",
-    borderRadius: 24,
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    minWidth: 160,
-    alignItems: "center",
-  },
   buttonDisabled: {
     opacity: 0.5,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
   },
   partnerCard: {
     alignItems: "center",

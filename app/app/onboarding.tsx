@@ -84,16 +84,16 @@ export default function Onboarding() {
 
   if (step === "install") {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         <Saborine pose="happy" />
-        <Text style={styles.title}>サボリーヌのおうちを{"\n"}ホームがめんに つくろう</Text>
-        <Text style={styles.subtitle}>
+        <Text style={commonStyles.screenTitle}>サボリーヌのおうちを{"\n"}ホームがめんに つくろう</Text>
+        <Text style={commonStyles.screenSubtitle}>
           ブラウザのメニューから「ホーム画面に追加」を えらぶと、アイコンから すぐに あそびに
           いけるよ
         </Text>
         {showBanner ? <InAppBanner /> : null}
-        <Pressable style={styles.button} onPress={() => router.replace("/")}>
-          <Text style={styles.buttonText}>ホームへ すすむ</Text>
+        <Pressable style={commonStyles.primaryButton} onPress={() => router.replace("/")}>
+          <Text style={commonStyles.primaryButtonText}>ホームへ すすむ</Text>
         </Pressable>
       </View>
     );
@@ -101,22 +101,22 @@ export default function Onboarding() {
 
   if (step === "welcome") {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         <Saborine pose="happy" />
-        <Text style={styles.title}>ようこそ、{trimmedName}さん</Text>
-        <Text style={styles.subtitle}>サボリーヌが なかまに なりました</Text>
-        <Pressable style={styles.button} onPress={() => setStep("install")}>
-          <Text style={styles.buttonText}>つぎへ</Text>
+        <Text style={commonStyles.screenTitle}>ようこそ、{trimmedName}さん</Text>
+        <Text style={commonStyles.screenSubtitle}>サボリーヌが なかまに なりました</Text>
+        <Pressable style={commonStyles.primaryButton} onPress={() => setStep("install")}>
+          <Text style={commonStyles.primaryButtonText}>つぎへ</Text>
         </Pressable>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={commonStyles.screenContainer}>
       <Saborine pose="normal" />
-      <Text style={styles.title}>サボリーヌが まっているよ</Text>
-      <Text style={styles.subtitle}>あなたの おなまえを おしえてね</Text>
+      <Text style={commonStyles.screenTitle}>サボリーヌが まっているよ</Text>
+      <Text style={commonStyles.screenSubtitle}>あなたの おなまえを おしえてね</Text>
       {reason === "unpaired" ? (
         <Text style={commonStyles.error}>
           なかまが いなくなってしまったみたい。もういちど、はじめから とうろくしてね
@@ -133,34 +133,21 @@ export default function Onboarding() {
       />
       {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
       <Pressable
-        style={[styles.button, !canSubmit && styles.buttonDisabled]}
+        style={[commonStyles.primaryButton, !canSubmit && styles.buttonDisabled]}
         onPress={handleSubmit}
         disabled={!canSubmit}
       >
-        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>はじめる</Text>}
+        {submitting ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={commonStyles.primaryButtonText}>はじめる</Text>
+        )}
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-    padding: 24,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-  },
   input: {
     width: "100%",
     maxWidth: 280,
@@ -172,20 +159,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
   },
-  button: {
-    backgroundColor: "#f4a261",
-    borderRadius: 24,
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    minWidth: 160,
-    alignItems: "center",
-  },
   buttonDisabled: {
     opacity: 0.5,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });
