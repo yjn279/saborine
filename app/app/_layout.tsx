@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { loadIdentity } from "../src/auth/identity";
+import { isGuestOnlyPath, isPublicPath, JOIN_PATH_PREFIX, WELCOME_PATH } from "../src/auth/routes";
 
-const ONBOARDING_PATH = "/onboarding";
-const JOIN_PATH_PREFIX = "/join/";
-
-// 起動のたびに登録済みかどうかを確かめる。未登録ならはじめかた画面へ、
-// 登録済みならはじめかた画面から呼び戻す。登録し直しにはならない。
+// 起動のたびに登録済みかどうかを確かめる。身分証がなければ、身分証なしで開ける道
+// (app/src/auth/routes.ts の一覧)以外はすべて紹介ページ(/welcome)へ差し替える。
+// 身分証があるのに紹介ページ・はじめかた画面を開いたときは、ホームへ呼び戻す。
 // 手紙のリンク(/join/:token)は、受け取った側がまだ未登録のまま開くため、
 // この確認から除外する(app/app/join/[token].tsx)。
 export default function RootLayout() {
@@ -25,21 +24,21 @@ export default function RootLayout() {
         if (!active) {
           return;
         }
-        if (!identity && pathname !== ONBOARDING_PATH) {
-          router.replace(ONBOARDING_PATH);
-        } else if (identity && pathname === ONBOARDING_PATH) {
+        if (!identity && !isPublicPath(pathname)) {
+          router.replace(WELCOME_PATH);
+        } else if (identity && isGuestOnlyPath(pathname)) {
           router.replace("/");
         }
         setChecked(true);
       })
       .catch((error: unknown) => {
-        // 保存領域が読めない場合も、無反応のまま固まらせず、はじめかた画面へ送り返す。
+        // 保存領域が読めない場合も、無反応のまま固まらせず、紹介ページへ送り返す。
         console.error("身分証の読み込みに失敗しました", error);
         if (!active) {
           return;
         }
-        if (pathname !== ONBOARDING_PATH) {
-          router.replace(ONBOARDING_PATH);
+        if (!isPublicPath(pathname)) {
+          router.replace(WELCOME_PATH);
         }
         setChecked(true);
       });
