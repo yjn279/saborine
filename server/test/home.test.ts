@@ -134,4 +134,48 @@ describe("ホームの状態", () => {
     expect(saborine.serif).not.toMatch(/して(ください|!|。)?$/);
     expect(saborine.serif).not.toMatch(/しなさい|今すぐ|期限|までに/);
   });
+
+  it("記録が24時間以上ない利用者では、serifKindが促しになる", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+
+    const { body } = await getHome(db, account);
+    const saborine = body.saborine as { serifKind: string };
+    expect(saborine.serifKind).toBe("nudge");
+  });
+
+  it("直近に自分が記録済みのふだんの状態では、serifKindが促しではない", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+    await recordChore(db, account, "掃除");
+
+    const { body } = await getHome(db, account);
+    const saborine = body.saborine as { serifKind: string };
+    expect(saborine.serifKind).toBe("default");
+  });
+
+  it("だらしなモードのとき、serifKindがだらしなになる", async () => {
+    const db = await createTestDb();
+    const { a } = await registerPair(db, "彩花", "大樹");
+    await db.execute({
+      sql: "UPDATE characters SET created_at = ? WHERE pair_id = ?",
+      args: ["2020-01-01 00:00:00", a.pairId],
+    });
+
+    const { body } = await getHome(db, a);
+    const saborine = body.saborine as { isSloppy: boolean; serifKind: string };
+    expect(saborine.isSloppy).toBe(true);
+    expect(saborine.serifKind).toBe("sloppy");
+  });
+
+  it("応答に見せ方(跳ねる・動かす)を指示する項目が無い", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+
+    const { body } = await getHome(db, account);
+    const saborine = body.saborine as Record<string, unknown>;
+    expect(saborine).not.toHaveProperty("bounce");
+    expect(saborine).not.toHaveProperty("shouldBounce");
+    expect(saborine).not.toHaveProperty("animate");
+  });
 });

@@ -128,6 +128,7 @@ export function createHomeRoutes() {
         evolutionStage: Number(character?.evolution_stage ?? 0),
         evolutionLineage: character?.evolution_lineage ? String(character.evolution_lineage) : null,
         serif: line.text,
+        serifKind: line.kind,
       },
       balanceGauge,
       myAffection: {
