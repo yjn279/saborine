@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { formatStoredTimestamp } from "../src/db.js";
@@ -471,5 +472,21 @@ describe("予定実行(Cron Triggers)", () => {
     expect(Number(character.rows[0]?.evolution_stage)).toBe(0);
     // 進化しなかった月の成長ポイントは、置き換えられずそのまま翌月へ持ち越される。
     expect(Number(character.rows[0]?.total_growth_points)).toBe(5);
+  });
+
+  it("設定の式とコードの式が一致している", async () => {
+    // 一致していないと、週次カードが二度と作られないまま誰も気づかない。
+    // wrangler.jsonc はコメント付きのJSONのため、コメントを落としてから読む。
+    const source = await readFile(new URL("../wrangler.jsonc", import.meta.url).pathname, "utf8");
+    const config = JSON.parse(source.replace(/^\s*\/\/.*$/gm, "")) as { triggers: { crons: string[] } };
+    expect(config.triggers.crons).toEqual([WEEKLY_CARD_CRON, MORNING_CATCH_UP_CRON]);
+  });
+
+  it("知らない式で呼ばれたら、黙って何もせず失敗する", async () => {
+    const db = await createTestDb();
+    const vapidKeyPair = await generateVapidKeyPair();
+    await expect(
+      runScheduled(db, { vapidKeyPair, subject: "mailto:test@example.com" }, "0 0 * * *", new Date()),
+    ).rejects.toThrow("知らない予定実行の式です");
   });
 });
