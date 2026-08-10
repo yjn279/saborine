@@ -14,7 +14,8 @@ interface NudgeBounceProps {
 // サボリーヌを包んで上下にごく小さく揺らすだけの部品。姿の描き方は一切知らない。
 // 端末の「視差効果を減らす」設定が入っているときは揺らさない。
 export function NudgeBounce({ active, children }: NudgeBounceProps) {
-  const [reduceMotion, setReduceMotion] = useState(false);
+  // nullは端末設定を確認できていない状態。確認が終わるまで揺らさない。
+  const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const offset = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -32,7 +33,7 @@ export function NudgeBounce({ active, children }: NudgeBounceProps) {
   }, []);
 
   useEffect(() => {
-    if (!active || reduceMotion) {
+    if (!active || reduceMotion !== false) {
       offset.setValue(0);
       return;
     }
