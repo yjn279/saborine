@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
-import { setUnauthorizedHandler } from "../api/client";
+import { addUnauthorizedHandler } from "../api/client";
 import { clearIdentity, loadIdentity, type Identity } from "./identity";
 import { ONBOARDING_PATH, WELCOME_PATH } from "./routes";
 
@@ -41,11 +41,12 @@ export function useIdentity(): Identity | null {
   // ため、相手側はポーリング等の通信が401になって初めてそれを知る。端末の身分証を
   // 消し、穏やかな文言とともにはじめかた画面へ送り返して復帰できるようにする。
   // 一度登録した人なので、紹介ページ(/welcome)ではなく、はじめかた画面へ送る。
+  // 画面が重ねてマウントされていても全画面ぶん登録するため、アンマウント時は
+  // 自分自身だけを取り除く。
   useEffect(() => {
-    setUnauthorizedHandler(() => {
+    return addUnauthorizedHandler(() => {
       clearIdentity().finally(() => router.replace(`${ONBOARDING_PATH}?reason=unpaired`));
     });
-    return () => setUnauthorizedHandler(null);
   }, [router]);
 
   return identity;

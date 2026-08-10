@@ -62,15 +62,15 @@ export default function Home() {
     }
     setThanksSending(true);
     setErrorMessage(null);
-    setEating(true);
     try {
       await sendThanks(identity, chore.id);
+      setEating(true);
+      eatingTimer.current = setTimeout(() => setEating(false), EATING_REACTION_MS);
       await refresh(identity);
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "ありがとうを おくれませんでした");
     } finally {
       setThanksSending(false);
-      eatingTimer.current = setTimeout(() => setEating(false), EATING_REACTION_MS);
     }
   };
 
@@ -78,14 +78,14 @@ export default function Home() {
 
   if (!identity || !homeState) {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : <ActivityIndicator />}
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={commonStyles.screenContainer}>
       <Pressable
         onPress={() => router.push("/record")}
         accessibilityRole="button"
@@ -125,13 +125,6 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-    padding: 24,
-  },
   serif: {
     fontSize: 15,
     color: "#6b5237",

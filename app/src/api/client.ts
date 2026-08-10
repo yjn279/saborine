@@ -5,6 +5,11 @@ import type { Identity } from "../auth/identity";
 // 既定を本番の姿にしておくと、設定の読み込みに失敗しても本番が壊れず、開発側がその場で失敗する。
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
+// このアプリの公開URL。ネイティブでは実行中のページのアドレスを取れないため、
+// 招待リンクなど絶対URLが要る場面はここを使う。ローカル開発ではExpoのWebサーバーの
+// 既定ポートに向ける。
+export const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_URL ?? "http://localhost:8081";
+
 // サーバーが失敗を返した、またはサーバーに届かなかったことを表す。
 // メッセージはそのまま画面に出せる日本語にする。
 export class ApiError extends Error {
@@ -24,14 +29,16 @@ interface RequestOptions {
 }
 
 // 401(=このBearerトークンではもう認証できない。ペア解除やアカウント削除で、
-// 相手側の身分証がその場で失効した場合など)を検知したときに1度だけ呼ぶ。
-// useIdentity.tsが画面の表示中はここに自分自身を登録し、はじめかた画面へ
-// 送り返す。ここを唯一の入口にすることで、どの画面のどの通信が401を受けても
-// 同じ場所に復帰できる。
-let unauthorizedHandler: (() => void) | null = null;
+// 相手側の身分証がその場で失効した場合など)を検知したときに呼ぶ。
+// useIdentity.tsは画面の表示中はここに自分自身を登録し、はじめかた画面へ
+// 送り返す。React Navigationのスタックでは複数の画面が同時にマウントされうるため、
+// 単一のスロットではなく集合で持ち、登録されている全画面へ知らせる。
+const unauthorizedHandlers = new Set<() => void>();
 
-export function setUnauthorizedHandler(handler: (() => void) | null): void {
-  unauthorizedHandler = handler;
+// 登録すると、解除するための関数を返す(useIdentity.tsのアンマウント時に呼ぶ)。
+export function addUnauthorizedHandler(handler: () => void): () => void {
+  unauthorizedHandlers.add(handler);
+  return () => unauthorizedHandlers.delete(handler);
 }
 
 function isErrorBody(value: unknown): value is { error: string } {
@@ -70,7 +77,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   if (!response.ok) {
     const message = isErrorBody(payload) ? payload.error : "サーバーとの つうしんに しっぱいしました";
     if (response.status === 401 && options.identity) {
-      unauthorizedHandler?.();
+      unauthorizedHandlers.forEach((handler) => handler());
     }
     throw new ApiError(message, response.status);
   }
