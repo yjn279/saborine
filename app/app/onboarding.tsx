@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { apiRequest, ApiError } from "../src/api/client";
-import type { RegisterAccountRequest, RegisterAccountResponse } from "../src/api/types";
-import { createIdentity, saveIdentity, type Identity } from "../src/auth/identity";
+import { ApiError } from "../src/api/client";
+import { registerAccount } from "../src/api/account";
+import { registerIdentity, retrySaveIdentity, type IdentityRegistrationResult } from "../src/auth/register";
+import type { Identity } from "../src/auth/identity";
 import { Saborine } from "../src/components/saborine/Saborine";
 import { InAppBanner } from "../src/components/InAppBanner";
 import { subscribeToPush } from "../src/push/subscribe";
@@ -25,46 +26,52 @@ export default function Onboarding() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [showBanner, setShowBanner] = useState(false);
+  // サーバーへの登録は成功したが端末保存だけ失敗したときの、保存待ちの身分証。
+  // 残っている間は、サーバーへ再度リクエストを送らず保存だけをやり直す。
+  const [pendingIdentity, setPendingIdentity] = useState<Identity | null>(null);
 
   const trimmedName = displayName.trim();
   const canSubmit = trimmedName.length > 0 && !submitting;
+  const canRetrySave = !!pendingIdentity && !submitting;
+
+  const applyResult = (result: IdentityRegistrationResult) => {
+    if (result.status === "api-error") {
+      setErrorMessage(result.error instanceof ApiError ? result.error.message : "とうろくに しっぱいしました");
+      setSubmitting(false);
+      return;
+    }
+    if (result.status === "save-error") {
+      setPendingIdentity(result.identity);
+      setErrorMessage("とうろくは できたけど、このたんまつに ほぞんできなかったよ");
+      setSubmitting(false);
+      return;
+    }
+    setPendingIdentity(null);
+    setIdentity(result.identity);
+    setStep("welcome");
+    setSubmitting(false);
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
     setErrorMessage(null);
-    const newIdentity = createIdentity();
-
-    try {
-      const request: RegisterAccountRequest = {
+    const result = await registerIdentity((newIdentity) =>
+      registerAccount({
         displayName: trimmedName,
         userId: newIdentity.userId,
         secret: newIdentity.secret,
-      };
-      await apiRequest<RegisterAccountResponse>("/api/account", {
-        method: "POST",
-        body: request,
-      });
-    } catch (error) {
-      setErrorMessage(error instanceof ApiError ? error.message : "とうろくに しっぱいしました");
-      setSubmitting(false);
+      }),
+    );
+    applyResult(result);
+  };
+
+  const handleRetrySave = async () => {
+    if (!pendingIdentity || submitting) {
       return;
     }
-
-    // 登録自体はサーバーで成功しているため、保存の失敗を「登録失敗」として扱わない。
-    // 保存できないまま次へ進むと合言葉を失って孤立するため、区別してこの場にとどめる。
-    try {
-      await saveIdentity(newIdentity);
-    } catch {
-      setErrorMessage(
-        "とうろくは できたけど、このたんまつに ほぞんできなかったよ。もういちど おためしください",
-      );
-      setSubmitting(false);
-      return;
-    }
-
-    setIdentity(newIdentity);
-    setStep("welcome");
-    setSubmitting(false);
+    setSubmitting(true);
+    setErrorMessage(null);
+    applyResult(await retrySaveIdentity(pendingIdentity));
   };
 
   useEffect(() => {
@@ -84,16 +91,16 @@ export default function Onboarding() {
 
   if (step === "install") {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         <Saborine pose="happy" />
-        <Text style={styles.title}>サボリーヌのおうちを{"\n"}ホームがめんに つくろう</Text>
-        <Text style={styles.subtitle}>
+        <Text style={commonStyles.screenTitle}>サボリーヌのおうちを{"\n"}ホームがめんに つくろう</Text>
+        <Text style={commonStyles.screenSubtitle}>
           ブラウザのメニューから「ホーム画面に追加」を えらぶと、アイコンから すぐに あそびに
           いけるよ
         </Text>
         {showBanner ? <InAppBanner /> : null}
-        <Pressable style={styles.button} onPress={() => router.replace("/")}>
-          <Text style={styles.buttonText}>ホームへ すすむ</Text>
+        <Pressable style={commonStyles.primaryButton} onPress={() => router.replace("/")}>
+          <Text style={commonStyles.primaryButtonText}>ホームへ すすむ</Text>
         </Pressable>
       </View>
     );
@@ -101,22 +108,22 @@ export default function Onboarding() {
 
   if (step === "welcome") {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         <Saborine pose="happy" />
-        <Text style={styles.title}>ようこそ、{trimmedName}さん</Text>
-        <Text style={styles.subtitle}>サボリーヌが なかまに なりました</Text>
-        <Pressable style={styles.button} onPress={() => setStep("install")}>
-          <Text style={styles.buttonText}>つぎへ</Text>
+        <Text style={commonStyles.screenTitle}>ようこそ、{trimmedName}さん</Text>
+        <Text style={commonStyles.screenSubtitle}>サボリーヌが なかまに なりました</Text>
+        <Pressable style={commonStyles.primaryButton} onPress={() => setStep("install")}>
+          <Text style={commonStyles.primaryButtonText}>つぎへ</Text>
         </Pressable>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={commonStyles.screenContainer}>
       <Saborine pose="normal" />
-      <Text style={styles.title}>サボリーヌが まっているよ</Text>
-      <Text style={styles.subtitle}>あなたの おなまえを おしえてね</Text>
+      <Text style={commonStyles.screenTitle}>サボリーヌが まっているよ</Text>
+      <Text style={commonStyles.screenSubtitle}>あなたの おなまえを おしえてね</Text>
       {reason === "unpaired" ? (
         <Text style={commonStyles.error}>
           なかまが いなくなってしまったみたい。もういちど、はじめから とうろくしてね
@@ -128,39 +135,31 @@ export default function Onboarding() {
         onChangeText={setDisplayName}
         placeholder="おなまえ"
         maxLength={DISPLAY_NAME_MAX_LENGTH}
-        editable={!submitting}
+        editable={!submitting && !pendingIdentity}
         autoFocus
       />
       {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
       <Pressable
-        style={[styles.button, !canSubmit && styles.buttonDisabled]}
-        onPress={handleSubmit}
-        disabled={!canSubmit}
+        style={[
+          commonStyles.primaryButton,
+          !(pendingIdentity ? canRetrySave : canSubmit) && styles.buttonDisabled,
+        ]}
+        onPress={pendingIdentity ? handleRetrySave : handleSubmit}
+        disabled={!(pendingIdentity ? canRetrySave : canSubmit)}
       >
-        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>はじめる</Text>}
+        {submitting ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={commonStyles.primaryButtonText}>
+            {pendingIdentity ? "もういちど ほぞんする" : "はじめる"}
+          </Text>
+        )}
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-    padding: 24,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-  },
   input: {
     width: "100%",
     maxWidth: 280,
@@ -172,20 +171,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
   },
-  button: {
-    backgroundColor: "#f4a261",
-    borderRadius: 24,
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    minWidth: 160,
-    alignItems: "center",
-  },
   buttonDisabled: {
     opacity: 0.5,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });

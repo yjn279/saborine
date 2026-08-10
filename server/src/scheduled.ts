@@ -3,7 +3,12 @@ import { formatStoredTimestamp, parseStoredTimestamp } from "./db.js";
 import type { PushSubscription, WebPushConfig } from "./push/send.js";
 import { sendWebPush } from "./push/send.js";
 import type { NotificationKind, TimedEvent } from "./push/notifications.js";
-import { buildNotificationContent, groupWithinOneHour, quietHourWindowEnding } from "./push/notifications.js";
+import {
+  buildNotificationContent,
+  groupWithinOneHour,
+  quietHourWindowEnding,
+  resolveDeliveryTime,
+} from "./push/notifications.js";
 import { getPreviousWeekRange } from "./domain/weekly-card.js";
 import { ensureWeeklyCard } from "./weekly-card-store.js";
 import { getPreviousMonthRange, isFirstDayOfMonthJst } from "./domain/week.js";
@@ -43,7 +48,9 @@ async function subscriptionsForUser(db: Db, userId: string): Promise<PushSubscri
 }
 
 // 1人ぶんの購読すべてに同じお知らせを送る。届かなくなった購読(410/404)はその場で消す。
-async function notifyUser(db: Db, config: WebPushConfig, userId: string, kind: NotificationKind): Promise<void> {
+// 1件ごとに送信を独立してtry/catchし、1件の失敗・例外が他の購読への送信や呼び出し元の
+// 予定実行全体を巻き込んで失敗にしないようにする。
+export async function notifyUser(db: Db, config: WebPushConfig, userId: string, kind: NotificationKind): Promise<void> {
   const subscriptions = await subscriptionsForUser(db, userId);
   if (subscriptions.length === 0) {
     return;
@@ -51,12 +58,39 @@ async function notifyUser(db: Db, config: WebPushConfig, userId: string, kind: N
   const content = buildNotificationContent(kind);
   await Promise.all(
     subscriptions.map(async (subscription) => {
-      const result = await sendWebPush(subscription, { kind, ...content }, config);
-      if (result.outcome === "expired") {
-        await db.execute({ sql: "DELETE FROM push_subscriptions WHERE endpoint = ?", args: [subscription.endpoint] });
+      try {
+        const result = await sendWebPush(subscription, { kind, ...content }, config);
+        if (result.outcome === "expired") {
+          await db.execute({
+            sql: "DELETE FROM push_subscriptions WHERE endpoint = ?",
+            args: [subscription.endpoint],
+          });
+        } else if (result.outcome === "failed") {
+          console.error(`プッシュ送信に失敗しました: userId=${userId} kind=${kind} status=${result.status}`);
+        }
+      } catch (error) {
+        console.error(`プッシュ送信中に例外が発生しました: userId=${userId} kind=${kind}`, error);
       }
     }),
   );
+}
+
+// 記録・ありがとうの直後に、いま(=occurredAt)が夜間(22時〜翌8時JST)でなければその場で届ける。
+// 夜間なら何もせず、翌朝の予定実行(deliverQuietHourNotifications)に任せ、二重送信を避ける。
+export async function notifyIfImmediate(
+  db: Db,
+  config: WebPushConfig | undefined,
+  recipientUserId: string,
+  kind: "chore_recorded" | "thanks_received",
+  occurredAt: Date,
+): Promise<void> {
+  if (!config) {
+    return;
+  }
+  if (resolveDeliveryTime(occurredAt).getTime() !== occurredAt.getTime()) {
+    return;
+  }
+  await notifyUser(db, config, recipientUserId, kind);
 }
 
 // 直前の週が閉じたペアそれぞれへ、週次カードを生成(未生成なら)し、購読しているメンバーへ届ける。
@@ -93,7 +127,7 @@ async function deliverMonthlyEvolutions(db: Db, config: WebPushConfig, now: Date
     pairsResult.rows.map(async (pairRow) => {
       const pairId = String(pairRow.id);
       const characterResult = await db.execute({
-        sql: "SELECT total_growth_points FROM characters WHERE pair_id = ?",
+        sql: "SELECT total_growth_points, growth_cycle_started_at FROM characters WHERE pair_id = ?",
         args: [pairId],
       });
       const character = characterResult.rows[0];
@@ -113,13 +147,20 @@ async function deliverMonthlyEvolutions(db: Db, config: WebPushConfig, now: Date
         return;
       }
 
-      await db.execute({
+      // growth_cycle_started_atが読み取り時から変わっていない場合に限り進化を適用する。
+      // Cron Triggersの重複実行(手動再実行含む)で同じ進化イベントが二重に走っても、
+      // 2回目はこの条件に一致せず0行更新となり、evolution_stageの二重加算・お知らせの
+      // 二重送信を防ぐ。
+      const updateResult = await db.execute({
         sql: `UPDATE characters
               SET evolution_stage = evolution_stage + 1, evolution_lineage = ?,
                   total_growth_points = 0, growth_cycle_started_at = ?
-              WHERE pair_id = ?`,
-        args: [decision.lineage, formatStoredTimestamp(monthRange.end), pairId],
+              WHERE pair_id = ? AND growth_cycle_started_at = ?`,
+        args: [decision.lineage, formatStoredTimestamp(monthRange.end), pairId, String(character.growth_cycle_started_at)],
       });
+      if (updateResult.rowsAffected === 0) {
+        return;
+      }
 
       const usersResult = await db.execute({
         sql: "SELECT id FROM users WHERE pair_id = ? AND notifications_enabled = 1",

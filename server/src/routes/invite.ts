@@ -77,23 +77,26 @@ export function createInviteRoutes() {
     }
     const pairId = String(pair.id);
 
-    if (await isUserIdRegistered(db, userId)) {
+    const [alreadyRegistered, memberCountResult, characterResult] = await Promise.all([
+      isUserIdRegistered(db, userId),
+      db.execute({
+        sql: "SELECT COUNT(*) as count FROM users WHERE pair_id = ?",
+        args: [pairId],
+      }),
+      db.execute({
+        sql: "SELECT id, name FROM characters WHERE pair_id = ?",
+        args: [pairId],
+      }),
+    ]);
+    if (alreadyRegistered) {
       return c.json({ error: "すでに登録されています" }, 409);
     }
 
-    const memberCountResult = await db.execute({
-      sql: "SELECT COUNT(*) as count FROM users WHERE pair_id = ?",
-      args: [pairId],
-    });
     const memberCount = Number(memberCountResult.rows[0]?.count ?? 0);
     if (memberCount >= PAIR_MAX_MEMBERS) {
       return c.json({ error: "この招待はすでに使われています" }, 409);
     }
 
-    const characterResult = await db.execute({
-      sql: "SELECT id, name FROM characters WHERE pair_id = ?",
-      args: [pairId],
-    });
     const character = characterResult.rows[0];
     if (!character) {
       return c.json({ error: "ペアが見つかりません" }, 404);
@@ -101,12 +104,15 @@ export function createInviteRoutes() {
 
     const secretHash = await hashSecret(secret);
 
-    // 上のCOUNTでの確認とこのINSERTの間に同時受諾が割り込む余地があるため、人数の
-    // 確認を同じ1文の中に埋め込み、3人目が紛れ込まないようにする(挿入0件なら競合負け)。
+    // 上のCOUNTでの確認とこのINSERTの間に、同時受諾やペア解除が割り込む余地があるため、
+    // ペアがまだ存在することと人数の確認を同じ1文の中に埋め込み、pairsが消えた後の孤立
+    // ユーザーや3人目の紛れ込みを防ぐ(挿入0件なら競合負け)。
     const insertResult = await db.execute({
       sql: `INSERT INTO users (id, pair_id, display_name, secret_hash)
-            SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM users WHERE pair_id = ?) < ?`,
-      args: [userId, pairId, displayName, secretHash, pairId, PAIR_MAX_MEMBERS],
+            SELECT ?, ?, ?, ?
+            WHERE EXISTS (SELECT 1 FROM pairs WHERE id = ?)
+              AND (SELECT COUNT(*) FROM users WHERE pair_id = ?) < ?`,
+      args: [userId, pairId, displayName, secretHash, pairId, pairId, PAIR_MAX_MEMBERS],
     });
     if (insertResult.rowsAffected === 0) {
       return c.json({ error: "この招待はすでに使われています" }, 409);

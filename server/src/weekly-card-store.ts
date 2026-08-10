@@ -36,9 +36,23 @@ export async function ensureWeeklyCard(db: Db, pairId: string, weekRange: WeekRa
   const thanksCount = thanksResult.rows.length;
 
   const storyText = generateWeeklyCardText({ choreTypes, thanksCount });
+  // GET /api/weekly-card(読み取り専用)と日曜21時のcronが同時に走ると、存在確認(上のSELECT)の
+  // 直後にどちらも「無い」と判断してINSERTしうる。UNIQUE(pair_id, week_start)に衝突しても
+  // エラーにせず、書き込み側は静かに諦めて、直後のSELECTで確定した1行を読み直す。
   await db.execute({
-    sql: "INSERT INTO weekly_cards (id, pair_id, week_start, story_text) VALUES (?, ?, ?, ?)",
+    sql: `INSERT INTO weekly_cards (id, pair_id, week_start, story_text)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT (pair_id, week_start) DO NOTHING`,
     args: [crypto.randomUUID(), pairId, weekStartIso, storyText],
   });
-  return storyText;
+
+  const finalResult = await db.execute({
+    sql: "SELECT story_text FROM weekly_cards WHERE pair_id = ? AND week_start = ?",
+    args: [pairId, weekStartIso],
+  });
+  const final = finalResult.rows[0];
+  if (!final) {
+    throw new Error("週次カードの生成に失敗しました");
+  }
+  return String(final.story_text);
 }

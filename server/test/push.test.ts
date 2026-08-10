@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { formatStoredTimestamp } from "../src/db.js";
-import { createTestDb, registerTestAccount, registerTestPair } from "./helpers.js";
+import { createTestDb, registerPushSubscription, registerTestAccount, registerTestPair } from "./helpers.js";
 import {
   NOTIFICATION_KINDS,
   assertNotificationKind,
@@ -14,7 +14,7 @@ import type { NotificationKind } from "../src/push/notifications.js";
 import { sendWebPush } from "../src/push/send.js";
 import type { PushSubscription, WebPushConfig } from "../src/push/send.js";
 import { base64UrlDecode, base64UrlEncode, generateVapidKeyPair } from "../src/push/vapid.js";
-import { MORNING_CATCH_UP_CRON, WEEKLY_CARD_CRON, runScheduled } from "../src/scheduled.js";
+import { MORNING_CATCH_UP_CRON, WEEKLY_CARD_CRON, notifyIfImmediate, runScheduled } from "../src/scheduled.js";
 import { getPreviousWeekRange } from "../src/domain/weekly-card.js";
 
 // テスト用に、実在の購読と同じ形(P-256のECDH公開鍵+16バイトの認証シークレット)を作る。
@@ -132,6 +132,37 @@ describe("22時〜翌8時の繰り越し", () => {
     const occurredAt = new Date("2024-01-10T18:00:00.000Z");
     const delivered = resolveDeliveryTime(occurredAt);
     expect(delivered).toEqual(new Date("2024-01-10T23:00:00.000Z"));
+  });
+});
+
+describe("記録・ありがとうの直後のお知らせ(notifyIfImmediate)", () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("夜間(22時〜翌8時JST)でなければその場で届き、夜間なら届かない", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+    const subscription = await createFakeSubscription("https://push.example.com/immediate");
+    await registerPushSubscription(db, account.userId, subscription);
+
+    let sendCount = 0;
+    globalThis.fetch = (async () => {
+      sendCount += 1;
+      return new Response(null, { status: 201 });
+    }) as typeof fetch;
+
+    const vapidKeyPair = await generateVapidKeyPair();
+    const config: WebPushConfig = { vapidKeyPair, subject: "mailto:test@example.com" };
+
+    // 2024-01-10T06:00:00Z = 2024-01-10 15:00 JST(日中)。その場で届く。
+    await notifyIfImmediate(db, config, account.userId, "chore_recorded", new Date("2024-01-10T06:00:00.000Z"));
+    expect(sendCount).toBe(1);
+
+    // 2024-01-10T14:00:00Z = 2024-01-10 23:00 JST(夜間)。届かず、翌朝の予定実行に任される。
+    await notifyIfImmediate(db, config, account.userId, "thanks_received", new Date("2024-01-10T14:00:00.000Z"));
+    expect(sendCount).toBe(1);
   });
 });
 
@@ -318,6 +349,53 @@ describe("予定実行(Cron Triggers)", () => {
     expect(cardRows.rows).toHaveLength(1);
   });
 
+  it("ひとつの購読への送信が失敗しても、もう一方の購読への送信は行われ、予定実行全体は失敗しない", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+    await db.execute({
+      sql: "UPDATE pairs SET established_at = CURRENT_TIMESTAMP WHERE id = ?",
+      args: [account.pairId],
+    });
+    const now = new Date();
+    const previousWeek = getPreviousWeekRange(now);
+    await db.execute({
+      sql: "INSERT INTO chore_logs (id, pair_id, user_id, chore_type, created_at) VALUES (?, ?, ?, ?, ?)",
+      args: [
+        crypto.randomUUID(),
+        account.pairId,
+        account.userId,
+        "お皿洗い",
+        formatStoredTimestamp(new Date(previousWeek.start.getTime() + 60_000)),
+      ],
+    });
+
+    const brokenSubscription = await createFakeSubscription("https://push.example.com/broken");
+    const workingSubscription = await createFakeSubscription("https://push.example.com/working");
+    await registerPushSubscription(db, account.userId, brokenSubscription);
+    await registerPushSubscription(db, account.userId, workingSubscription);
+
+    let workingSendCount = 0;
+    globalThis.fetch = (async (url: RequestInfo | URL) => {
+      if (String(url) === brokenSubscription.endpoint) {
+        throw new Error("ネットワークに到達できません");
+      }
+      workingSendCount += 1;
+      return new Response(null, { status: 201 });
+    }) as typeof fetch;
+
+    const vapidKeyPair = await generateVapidKeyPair();
+    await expect(
+      runScheduled(db, { vapidKeyPair, subject: "mailto:test@example.com" }, WEEKLY_CARD_CRON, now),
+    ).resolves.toBeUndefined();
+
+    expect(workingSendCount).toBe(1);
+    const cardRows = await db.execute({
+      sql: "SELECT id FROM weekly_cards WHERE pair_id = ? AND week_start = ?",
+      args: [account.pairId, previousWeek.start.toISOString()],
+    });
+    expect(cardRows.rows).toHaveLength(1);
+  });
+
   it("22時〜翌8時に届いた記録は、翌朝8時の予定実行でパートナーにまとめて届く", async () => {
     const db = await createTestDb();
     const account = await registerTestAccount(db, "彩花");
@@ -444,6 +522,58 @@ describe("予定実行(Cron Triggers)", () => {
     expect(String(character.rows[0]?.evolution_lineage)).toBe("harmony");
     // 進化した月ぶんの成長ポイントは消費され、次のサイクルは0から始まる。
     expect(Number(character.rows[0]?.total_growth_points)).toBe(0);
+  });
+
+  it("月次進化の予定実行が同じ時刻で二重に走っても、進化とお知らせは二重にならない", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerTestPair(db, "彩花", "大樹");
+    await db.execute({
+      sql: "UPDATE characters SET total_growth_points = 25 WHERE pair_id = ?",
+      args: [a.pairId],
+    });
+
+    // 1月中の5日間、aとbが同じ日に互いへありがとうを送り合う(調和系で進化する条件を整える)。
+    for (let day = 1; day <= 5; day += 1) {
+      const createdAt = `2024-01-0${day} 00:00:00`;
+      for (const member of [a, b]) {
+        const choreLogId = crypto.randomUUID();
+        await db.execute({
+          sql: "INSERT INTO chore_logs (id, pair_id, user_id, chore_type, created_at) VALUES (?, ?, ?, ?, ?)",
+          args: [choreLogId, a.pairId, member.userId, "掃除", createdAt],
+        });
+        await db.execute({
+          sql: "INSERT INTO thanks (id, chore_log_id, user_id, created_at) VALUES (?, ?, ?, ?)",
+          args: [crypto.randomUUID(), choreLogId, member.userId, createdAt],
+        });
+      }
+    }
+
+    const subscriptionA = await createFakeSubscription("https://push.example.com/growth-dup-a");
+    const subscriptionB = await createFakeSubscription("https://push.example.com/growth-dup-b");
+    await registerPushSubscription(db, a.userId, subscriptionA);
+    await registerPushSubscription(db, b.userId, subscriptionB);
+
+    let sendCount = 0;
+    globalThis.fetch = (async () => {
+      sendCount += 1;
+      return new Response(null, { status: 201 });
+    }) as typeof fetch;
+
+    const vapidKeyPair = await generateVapidKeyPair();
+    const config = { vapidKeyPair, subject: "mailto:test@example.com" };
+    // 2024-02-01 00:00 JST = 2024-01-31T15:00:00Z。同じ時刻の予定実行が重複して走った状況を再現する。
+    const now = new Date("2024-01-31T15:00:00.000Z");
+    await Promise.all([
+      runScheduled(db, config, MORNING_CATCH_UP_CRON, now),
+      runScheduled(db, config, MORNING_CATCH_UP_CRON, now),
+    ]);
+
+    expect(sendCount).toBe(2);
+    const character = await db.execute({
+      sql: "SELECT evolution_stage FROM characters WHERE pair_id = ?",
+      args: [a.pairId],
+    });
+    expect(Number(character.rows[0]?.evolution_stage)).toBe(1);
   });
 
   it("当月の成長ポイントが20未満なら進化せず、成長のお知らせも届かない", async () => {

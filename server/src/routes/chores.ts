@@ -4,6 +4,7 @@ import { authMiddleware } from "../auth.js";
 import { parseStoredTimestamp } from "../db.js";
 import { CHORE_PRESETS, orderPresetsByRecentUse } from "../domain/presets.js";
 import { recalculateGrowthPoints } from "../growth-ledger.js";
+import { notifyIfImmediate } from "../scheduled.js";
 
 const CHORE_TYPE_MAX_LENGTH = 30;
 
@@ -58,12 +59,27 @@ export function createChoreRoutes() {
       "write",
     );
 
-    const created = await db.execute({
-      sql: "SELECT created_at FROM chore_logs WHERE id = ?",
-      args: [id],
-    });
+    // 記録のお知らせは、記録した本人ではなく相手に届ける。相手がお知らせをオフにしていれば届けない。
+    const [created, partnerResult] = await Promise.all([
+      db.execute({ sql: "SELECT created_at FROM chore_logs WHERE id = ?", args: [id] }),
+      db.execute({
+        sql: "SELECT id FROM users WHERE pair_id = ? AND id != ? AND notifications_enabled = 1",
+        args: [user.pairId, user.id],
+      }),
+    ]);
+    const createdAt = String(created.rows[0]?.created_at);
+    const partner = partnerResult.rows[0];
+    if (partner) {
+      await notifyIfImmediate(
+        db,
+        c.get("pushConfig"),
+        String(partner.id),
+        "chore_recorded",
+        parseStoredTimestamp(createdAt),
+      );
+    }
 
-    return c.json({ id, choreType, createdAt: String(created.rows[0]?.created_at) }, 201);
+    return c.json({ id, choreType, createdAt }, 201);
   });
 
   // 相手の記録に「ありがとう」を1回だけ返す。自分の記録には送れず、2回目は失敗する。
@@ -109,22 +125,35 @@ export function createChoreRoutes() {
     );
 
     // 直近の進化(または結成)以降の当月ぶんの成長ポイントを求め直す(server/src/growth-ledger.ts)。
-    const characterResult = await db.execute({
-      sql: "SELECT growth_cycle_started_at FROM characters WHERE pair_id = ?",
-      args: [user.pairId],
-    });
-    const cycleStartedAt = parseStoredTimestamp(characterResult.rows[0]?.growth_cycle_started_at);
-    await recalculateGrowthPoints(db, user.pairId, cycleStartedAt, new Date());
+    // ペア解除(DELETE /api/pair)と競合してキャラクター行がすでに無い場合は、対象が
+    // 存在しないので再計算そのものをスキップする(ありがとうの保存自体は済んでいる)。
+    // ありがとうのお知らせは、記録した本人(log.user_id)に届ける。お知らせをオフにしていれば届けない。
+    const [characterResult, created, recipientResult] = await Promise.all([
+      db.execute({ sql: "SELECT growth_cycle_started_at FROM characters WHERE pair_id = ?", args: [user.pairId] }),
+      db.execute({ sql: "SELECT created_at FROM thanks WHERE id = ?", args: [thanksId] }),
+      db.execute({
+        sql: "SELECT notifications_enabled FROM users WHERE id = ?",
+        args: [String(log.user_id)],
+      }),
+    ]);
+    const characterRow = characterResult.rows[0];
+    if (characterRow) {
+      const cycleStartedAt = parseStoredTimestamp(characterRow.growth_cycle_started_at);
+      await recalculateGrowthPoints(db, user.pairId, cycleStartedAt, new Date());
+    }
+    const createdAt = String(created.rows[0]?.created_at);
+    const recipient = recipientResult.rows[0];
+    if (recipient && Number(recipient.notifications_enabled) === 1) {
+      await notifyIfImmediate(
+        db,
+        c.get("pushConfig"),
+        String(log.user_id),
+        "thanks_received",
+        parseStoredTimestamp(createdAt),
+      );
+    }
 
-    const created = await db.execute({
-      sql: "SELECT created_at FROM thanks WHERE id = ?",
-      args: [thanksId],
-    });
-
-    return c.json(
-      { id: thanksId, choreLogId, createdAt: String(created.rows[0]?.created_at) },
-      201,
-    );
+    return c.json({ id: thanksId, choreLogId, createdAt }, 201);
   });
 
   return routes;

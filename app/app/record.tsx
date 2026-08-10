@@ -62,9 +62,9 @@ export default function Record() {
   const trimmedFreeText = freeText.trim();
 
   return (
-    <View style={styles.container}>
+    <View style={commonStyles.screenContainer}>
       <Saborine pose="normal" size={110} />
-      <Text style={styles.title}>なにか してくれた?</Text>
+      <Text style={commonStyles.title}>なにか してくれた?</Text>
 
       {loadError ? <Text style={commonStyles.error}>{loadError}</Text> : null}
       {!loadError && !presets ? <ActivityIndicator /> : null}
@@ -121,18 +121,6 @@ export default function Record() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-    padding: 24,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
   presetGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

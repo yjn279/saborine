@@ -20,6 +20,7 @@ import {
 import { clearIdentity } from "../src/auth/identity";
 import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
+import { InAppBanner } from "../src/components/InAppBanner";
 import { subscribeToPush, unsubscribeFromPush } from "../src/push/subscribe";
 import { commonStyles } from "../src/styles/common";
 
@@ -37,6 +38,7 @@ export default function Settings() {
 
   const [characterName, setCharacterName] = useState("");
   const [savingNotifications, setSavingNotifications] = useState(false);
+  const [showPushBanner, setShowPushBanner] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -83,15 +85,29 @@ export default function Settings() {
       setSavingNotifications(false);
       return;
     }
-    setSavingNotifications(false);
-
-    // お知らせの設定に合わせて、この端末の購読も切り替える。購読側の失敗(未対応環境・
-    // 許可なし等)は、すでに保存済みの設定を巻き戻す理由にはしない。
+    // お知らせの設定に合わせて、この端末の購読も切り替える。オンにする場合は、
+    // 実際に購読できたときだけオンのままにする(onboarding.tsxと同じ判定)。購読できな
+    // ければ、通知は届かないため設定もオフへ巻き戻し、ユーザーに分かる形で知らせる。
     if (next) {
-      await subscribeToPush(identity);
+      const result = await subscribeToPush(identity);
+      if (result.subscribed) {
+        setShowPushBanner(false);
+      } else {
+        setShowPushBanner(true);
+        try {
+          const reverted = await updateSettings(identity, { notificationsEnabled: false });
+          setSettings(reverted);
+        } catch {
+          setSettings((current) =>
+            current ? { ...current, notificationsEnabled: false } : current,
+          );
+        }
+      }
     } else {
+      setShowPushBanner(false);
       await unsubscribeFromPush(identity).catch(() => undefined);
     }
+    setSavingNotifications(false);
   };
 
   const trimmedName = characterName.trim();
@@ -170,6 +186,7 @@ export default function Settings() {
               disabled={savingNotifications}
             />
           </View>
+          {showPushBanner ? <InAppBanner /> : null}
 
           <View style={styles.nameRow}>
             <Text style={styles.rowLabel}>サボリーヌの なまえ</Text>
@@ -237,6 +254,15 @@ export default function Settings() {
                 <Text style={styles.linkButtonText}>アカウントを さくじょする</Text>
               </Pressable>
             )}
+          </View>
+
+          <View style={styles.legalLinks}>
+            <Pressable style={styles.linkButton} onPress={() => router.push("/terms")}>
+              <Text style={styles.linkButtonText}>りようきやく</Text>
+            </Pressable>
+            <Pressable style={styles.linkButton} onPress={() => router.push("/privacy")}>
+              <Text style={styles.linkButtonText}>プライバシーポリシー</Text>
+            </Pressable>
           </View>
         </>
       ) : null}
@@ -307,6 +333,11 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 320,
     gap: 16,
+    marginTop: 8,
+  },
+  legalLinks: {
+    width: "100%",
+    maxWidth: 320,
     marginTop: 8,
   },
   linkButton: {

@@ -9,20 +9,25 @@ import type { MonthRange } from "./domain/week.js";
 // すべての週について週ごとの成長ポイントを求め直し、合算する形で導く。差分を積む
 // 加算値を保持しないため、二重加算や取りこぼしが起きようがない。記録・ありがとうの
 // 直後(routes/chores.ts)に呼び、characters.total_growth_pointsを書き直す。
+const THANKS_IN_CYCLE_SQL = `SELECT chore_logs.user_id AS recipient, thanks.created_at AS created_at
+      FROM thanks
+      JOIN chore_logs ON thanks.chore_log_id = chore_logs.id
+      WHERE chore_logs.pair_id = ? AND thanks.created_at >= ? AND thanks.created_at <= ?`;
+
 export async function recalculateGrowthPoints(
   db: Db,
   pairId: string,
   cycleStartedAt: Date,
   now: Date,
 ): Promise<number> {
+  const cycleStartedAtStored = formatStoredTimestamp(cycleStartedAt);
+  const nowStored = formatStoredTimestamp(now);
+
   // 秒精度で保存されるため、nowと同じ秒に生まれた直前のありがとうを取りこぼさないよう、
   // 上限は「以下」で締める(週や月どうしを分ける境界ではなく、単なる評価時点のため)。
   const thanksResult = await db.execute({
-    sql: `SELECT chore_logs.user_id AS recipient, thanks.created_at AS created_at
-          FROM thanks
-          JOIN chore_logs ON thanks.chore_log_id = chore_logs.id
-          WHERE chore_logs.pair_id = ? AND thanks.created_at >= ? AND thanks.created_at <= ?`,
-    args: [pairId, formatStoredTimestamp(cycleStartedAt), formatStoredTimestamp(now)],
+    sql: THANKS_IN_CYCLE_SQL,
+    args: [pairId, cycleStartedAtStored, nowStored],
   });
 
   const countsByWeek = new Map<number, Map<string, number>>();
@@ -39,9 +44,28 @@ export async function recalculateGrowthPoints(
   });
   const totalGrowthPoints = sumWeeklyGrowthPoints(weeks);
 
+  // SELECTからUPDATEまでの隙間に別のありがとうが増えていないか、書き込みの瞬間に
+  // 同じ範囲の件数を数え直して確かめる(SQLite/libsqlは1文のUPDATEをそれ自体アトミックに
+  // 実行するため、この一致確認と書き込みの間には隙間が生まれない)。件数が食い違っていれば
+  // このtotalGrowthPointsはすでに古いので書き込まずに諦める。割り込んだ側の呼び出しが、
+  // 自分の集計で最終的に正しい値を書き込む。growth_cycle_started_atが読み取り時から
+  // 変わっていないことも同時に確かめ、月次進化ジョブ(scheduled.ts)が直後にリセットして
+  // いた場合は、リセット後の値を古い集計で上書きしない。
   await db.execute({
-    sql: "UPDATE characters SET total_growth_points = ? WHERE pair_id = ?",
-    args: [totalGrowthPoints, pairId],
+    sql: `UPDATE characters
+          SET total_growth_points = ?
+          WHERE pair_id = ?
+            AND growth_cycle_started_at = ?
+            AND (SELECT COUNT(*) FROM (${THANKS_IN_CYCLE_SQL})) = ?`,
+    args: [
+      totalGrowthPoints,
+      pairId,
+      cycleStartedAtStored,
+      pairId,
+      cycleStartedAtStored,
+      nowStored,
+      thanksResult.rows.length,
+    ],
   });
 
   return totalGrowthPoints;
