@@ -40,9 +40,19 @@ export default function Join() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const loaded = await loadIdentity();
-      if (active) {
-        setExistingIdentity(loaded);
+      try {
+        const loaded = await loadIdentity();
+        if (active) {
+          setExistingIdentity(loaded);
+        }
+      } catch (error) {
+        // 保存領域が壊れている・読めない等で身分証が読み込めなかった場合。この端末に
+        // 身分証はないものとして扱い、受諾フォームへ進める(招待の受諾は紹介ページを
+        // 経由しないため、ここでは送り返さない)。
+        console.error("身分証の読み込みに失敗しました", error);
+        if (active) {
+          setExistingIdentity(null);
+        }
       }
       if (!token) {
         return;
