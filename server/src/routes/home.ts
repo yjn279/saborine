@@ -113,10 +113,12 @@ export function createHomeRoutes() {
 
     const hasRecordedRecently =
       myLastRecordAt !== null && now.getTime() - myLastRecordAt.getTime() < RECENT_RECORD_WINDOW_MS;
-    const serif = pickLine({
+    const line = pickLine({
       isSloppy,
       hasUnthankedPartnerChore: partnerLatestChoreLog !== null && !partnerThanked,
       hasRecordedRecently,
+      pairId: user.pairId,
+      now,
     });
 
     return c.json({
@@ -125,7 +127,7 @@ export function createHomeRoutes() {
         isSloppy,
         evolutionStage: Number(character?.evolution_stage ?? 0),
         evolutionLineage: character?.evolution_lineage ? String(character.evolution_lineage) : null,
-        serif,
+        serif: line.text,
       },
       balanceGauge,
       myAffection: {

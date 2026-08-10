@@ -65,3 +65,9 @@ export function isFirstDayOfMonthJst(at: Date): boolean {
 export function jstCalendarDay(at: Date): string {
   return new Date(at.getTime() + JST_OFFSET_MS).toISOString().slice(0, 10);
 }
+
+// 指定した時刻の日本時間での通し日数(エポックからの経過日数)。日本時間の午前0時ちょうどに1増える。
+// 促しのセリフを日替わりで選ぶのに使う。
+export function jstDayNumber(at: Date): number {
+  return Math.floor((at.getTime() + JST_OFFSET_MS) / DAY_MS);
+}
