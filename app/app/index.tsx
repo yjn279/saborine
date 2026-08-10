@@ -3,13 +3,18 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { useFocusEffect, useRouter } from "expo-router";
 import { ApiError } from "../src/api/client";
 import { fetchHomeState, sendThanks, type HomeState } from "../src/api/home";
+import { fetchSettings } from "../src/api/settings";
 import { useIdentity } from "../src/auth/useIdentity";
 import type { Identity } from "../src/auth/identity";
 import { BalanceGauge } from "../src/components/BalanceGauge";
+import { CloseButton } from "../src/components/CloseButton";
+import { InAppBanner } from "../src/components/InAppBanner";
 import { ThanksButton } from "../src/components/ThanksButton";
 import { NudgeBounce } from "../src/components/saborine/NudgeBounce";
 import { Saborine } from "../src/components/saborine/Saborine";
 import type { SaborinePose } from "../src/components/saborine/types";
+import { createPushRestorer } from "../src/push/restore";
+import { hasPushSubscription, isPushSupported, subscribeToPush } from "../src/push/subscribe";
 import { commonStyles } from "../src/styles/common";
 
 const POLL_INTERVAL_MS = 20_000;
@@ -24,7 +29,9 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [thanksSending, setThanksSending] = useState(false);
   const [eating, setEating] = useState(false);
+  const [pushBannerVisible, setPushBannerVisible] = useState(false);
   const eatingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pushRestoreStarted = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -33,6 +40,30 @@ export default function Home() {
       }
     };
   }, []);
+
+  // 身分証が読めた時点で、お知らせの購読を作り直すべきか1回だけ判断する。ホームに
+  // 戻るたびや20秒ごとの取り直しでは呼ばない。対応していない環境と分かったときだけ
+  // 案内バナーを出す。失敗してもホームの表示・きろく・ありがとうは今までどおり動く。
+  useEffect(() => {
+    if (!identity || pushRestoreStarted.current) {
+      return;
+    }
+    pushRestoreStarted.current = true;
+    createPushRestorer({
+      isSupported: isPushSupported,
+      hasSubscription: hasPushSubscription,
+      isNotificationsEnabled: () => fetchSettings(identity).then((settings) => settings.notificationsEnabled),
+      subscribe: () => subscribeToPush(identity).then(() => undefined),
+    })()
+      .then((result) => {
+        if (result === "unsupported") {
+          setPushBannerVisible(true);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("お知らせの購読を作り直せませんでした", error);
+      });
+  }, [identity]);
 
   const refresh = useCallback(async (currentIdentity: Identity) => {
     try {
@@ -123,6 +154,13 @@ export default function Home() {
       <Pressable style={styles.recordButton} onPress={() => router.push("/record")}>
         <Text style={styles.recordButtonText}>きろくする</Text>
       </Pressable>
+
+      {pushBannerVisible ? (
+        <View style={styles.pushBanner}>
+          <InAppBanner />
+          <CloseButton onPress={() => setPushBannerVisible(false)} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -157,5 +195,8 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  pushBanner: {
+    alignItems: "center",
   },
 });
