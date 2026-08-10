@@ -119,6 +119,14 @@ flowchart LR
 
 個人別の集計を作らない原則は、事業指標にも適用する。集計はすべてペア単位で数え、「どちらが何回やったか」を比べる数値は運営側でも作らない。
 
+北極星指標とファネルの各段は、週に一度、次のコマンドで出す。データベースを読むだけで、何も書き換えない。
+
+```sh
+node server/scripts/kpi.mjs "$(turso db show saborine --url)?authToken=$(turso db tokens create saborine)"
+```
+
+紹介ページに着いた人のうち何人が登録したかは、アプリのデータベースには無い。Cloudflare の記録で見る。
+
 ## 進め方
 
 | 時期 | やること | 完了の判断 |
