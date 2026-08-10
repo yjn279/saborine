@@ -1,7 +1,9 @@
 import type { Identity } from "../auth/identity";
 
-// サーバーの入口。ローカル開発では `wrangler dev` の既定ポートに向ける。
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8787";
+// サーバーの入口。既定は空、つまりアプリ自身と同じ場所への相対パスであり、これが本番の姿である。
+// 開発中だけアプリとサーバーが別のポートで動くため、app/.env.development で宛先を上書きする。
+// 既定を本番の姿にしておくと、設定の読み込みに失敗しても本番が壊れず、開発側がその場で失敗する。
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 // サーバーが失敗を返した、またはサーバーに届かなかったことを表す。
 // メッセージはそのまま画面に出せる日本語にする。
