@@ -12,7 +12,8 @@ import { computeEvolutionRatios } from "./growth-ledger.js";
 
 // 予定実行(Cron Triggers)から呼ぶ2つの仕事に対応する式。server/wrangler.jsoncの設定と対にする。
 // 週次カード: 日曜21:00 JST(=12:00 UTC)。繰り越しぶんの記録・ありがとう: 翌8:00 JST(=23:00 UTC)。
-export const WEEKLY_CARD_CRON = "0 12 * * 0";
+// 曜日は1〜7(1=月曜、7=日曜)で書く。Cloudflareは0を日曜として受け付けない。
+export const WEEKLY_CARD_CRON = "0 12 * * 7";
 export const MORNING_CATCH_UP_CRON = "0 23 * * *";
 
 export async function runScheduled(db: Db, config: WebPushConfig, cron: string, now: Date): Promise<void> {
@@ -23,7 +24,11 @@ export async function runScheduled(db: Db, config: WebPushConfig, cron: string, 
   if (cron === MORNING_CATCH_UP_CRON) {
     await deliverQuietHourNotifications(db, config, now);
     await deliverMonthlyEvolutions(db, config, now);
+    return;
   }
+  // 設定側の式とここの式がずれたら、黙って何もしないのではなく失敗させる。
+  // 黙って通すと、週次カードが二度と作られないまま誰も気づかない。
+  throw new Error(`知らない予定実行の式です: ${cron}`);
 }
 
 async function subscriptionsForUser(db: Db, userId: string): Promise<PushSubscription[]> {
