@@ -2,6 +2,7 @@ import { StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { CloseButton } from "../src/components/CloseButton";
 import { LegalDocument } from "../src/components/LegalDocument";
+import { closeLegalDocument } from "../src/auth/routes";
 import { termsDocument } from "../src/legal/terms";
 
 // 利用規約の画面。文面は表示せず、app/src/legal/terms.tsのデータをLegalDocumentへ渡すだけ。
@@ -10,7 +11,7 @@ export default function Terms() {
   return (
     <View style={styles.container}>
       <LegalDocument document={termsDocument} />
-      <CloseButton onPress={() => router.back()} />
+      <CloseButton onPress={() => closeLegalDocument(router)} />
     </View>
   );
 }
