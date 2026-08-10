@@ -4,6 +4,20 @@ import { calcGrowthPoints } from "../src/domain/growth.js";
 import { computeEvolutionRatios, recalculateGrowthPoints } from "../src/growth-ledger.js";
 import { createTestDb, registerTestPair } from "./helpers.js";
 
+// recalculateGrowthPointsは、渡されたcycleStartedAtがcharacters.growth_cycle_started_atと
+// 一致する場合にだけ書き込む(server/src/growth-ledger.ts)。実際の呼び出し元(routes/chores.ts)は
+// DBから読み取った値をそのまま渡すため、テストでも同じ前提を整える。
+async function setCycleStartedAt(
+  db: Awaited<ReturnType<typeof createTestDb>>,
+  pairId: string,
+  cycleStartedAt: Date,
+) {
+  await db.execute({
+    sql: "UPDATE characters SET growth_cycle_started_at = ? WHERE pair_id = ?",
+    args: [formatStoredTimestamp(cycleStartedAt), pairId],
+  });
+}
+
 async function insertThanks(
   db: Awaited<ReturnType<typeof createTestDb>>,
   pairId: string,
@@ -26,6 +40,7 @@ describe("成長ポイントの積み上げ", () => {
     const db = await createTestDb();
     const { a, b } = await registerTestPair(db, "彩花", "大樹");
     const cycleStartedAt = new Date("2024-01-01T00:00:00.000Z");
+    await setCycleStartedAt(db, a.pairId, cycleStartedAt);
 
     // 1週目(日曜21時JST区切りで1つの週): aだけが1回ありがとうをもらう → 1点。
     const week1 = new Date("2024-01-10T00:00:00.000Z");
@@ -51,6 +66,7 @@ describe("成長ポイントの積み上げ", () => {
     const { a } = await registerTestPair(db, "彩花", "大樹");
     const before = new Date("2024-01-01T00:00:00.000Z");
     const cycleStartedAt = new Date("2024-01-10T00:00:00.000Z");
+    await setCycleStartedAt(db, a.pairId, cycleStartedAt);
     await insertThanks(db, a.pairId, a.userId, before);
 
     const total = await recalculateGrowthPoints(db, a.pairId, cycleStartedAt, new Date("2024-01-20T00:00:00.000Z"));
