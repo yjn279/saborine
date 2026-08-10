@@ -238,6 +238,15 @@ export default function Settings() {
               </Pressable>
             )}
           </View>
+
+          <View style={styles.legalLinks}>
+            <Pressable style={styles.linkButton} onPress={() => router.push("/terms")}>
+              <Text style={styles.linkButtonText}>りようきやく</Text>
+            </Pressable>
+            <Pressable style={styles.linkButton} onPress={() => router.push("/privacy")}>
+              <Text style={styles.linkButtonText}>プライバシーポリシー</Text>
+            </Pressable>
+          </View>
         </>
       ) : null}
 
@@ -307,6 +316,11 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 320,
     gap: 16,
+    marginTop: 8,
+  },
+  legalLinks: {
+    width: "100%",
+    maxWidth: 320,
     marginTop: 8,
   },
   linkButton: {
