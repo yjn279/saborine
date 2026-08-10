@@ -2,6 +2,7 @@ import { createClient } from "@libsql/client";
 import { applyMigrations } from "../scripts/apply-migrations.mjs";
 import { createApp } from "../src/app.js";
 import type { Db } from "../src/db.js";
+import type { PushSubscription } from "../src/push/send.js";
 
 // テスト用のデータベース。起動不要なNode用クライアントの:memory:に、
 // server/migrations/ と同じSQLを適用して組み立てる。
@@ -80,4 +81,16 @@ export async function registerTestPair(
     characterId: acceptBody.characterId,
   };
   return { a, b };
+}
+
+// 実在の購読と同じ形(createFakeSubscriptionが作った値)を、push_subscriptionsへ登録する。
+export async function registerPushSubscription(
+  db: Db,
+  userId: string,
+  subscription: PushSubscription,
+): Promise<void> {
+  await db.execute({
+    sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
+    args: [crypto.randomUUID(), userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth],
+  });
 }

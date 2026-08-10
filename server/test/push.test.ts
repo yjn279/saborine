@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { formatStoredTimestamp } from "../src/db.js";
-import { createTestDb, registerTestAccount, registerTestPair } from "./helpers.js";
+import { createTestDb, registerPushSubscription, registerTestAccount, registerTestPair } from "./helpers.js";
 import {
   NOTIFICATION_KINDS,
   assertNotificationKind,
@@ -145,10 +145,7 @@ describe("記録・ありがとうの直後のお知らせ(notifyIfImmediate)", 
     const db = await createTestDb();
     const account = await registerTestAccount(db, "彩花");
     const subscription = await createFakeSubscription("https://push.example.com/immediate");
-    await db.execute({
-      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
-      args: [crypto.randomUUID(), account.userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth],
-    });
+    await registerPushSubscription(db, account.userId, subscription);
 
     let sendCount = 0;
     globalThis.fetch = (async () => {
@@ -374,14 +371,8 @@ describe("予定実行(Cron Triggers)", () => {
 
     const brokenSubscription = await createFakeSubscription("https://push.example.com/broken");
     const workingSubscription = await createFakeSubscription("https://push.example.com/working");
-    await db.execute({
-      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
-      args: [crypto.randomUUID(), account.userId, brokenSubscription.endpoint, brokenSubscription.keys.p256dh, brokenSubscription.keys.auth],
-    });
-    await db.execute({
-      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
-      args: [crypto.randomUUID(), account.userId, workingSubscription.endpoint, workingSubscription.keys.p256dh, workingSubscription.keys.auth],
-    });
+    await registerPushSubscription(db, account.userId, brokenSubscription);
+    await registerPushSubscription(db, account.userId, workingSubscription);
 
     let workingSendCount = 0;
     globalThis.fetch = (async (url: RequestInfo | URL) => {
@@ -559,14 +550,8 @@ describe("予定実行(Cron Triggers)", () => {
 
     const subscriptionA = await createFakeSubscription("https://push.example.com/growth-dup-a");
     const subscriptionB = await createFakeSubscription("https://push.example.com/growth-dup-b");
-    await db.execute({
-      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
-      args: [crypto.randomUUID(), a.userId, subscriptionA.endpoint, subscriptionA.keys.p256dh, subscriptionA.keys.auth],
-    });
-    await db.execute({
-      sql: "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh_key, auth_key) VALUES (?, ?, ?, ?, ?)",
-      args: [crypto.randomUUID(), b.userId, subscriptionB.endpoint, subscriptionB.keys.p256dh, subscriptionB.keys.auth],
-    });
+    await registerPushSubscription(db, a.userId, subscriptionA);
+    await registerPushSubscription(db, b.userId, subscriptionB);
 
     let sendCount = 0;
     globalThis.fetch = (async () => {
