@@ -1,10 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "saborine-server",
+  "name": "saborine",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-08",
   "observability": {
     "enabled": true
+  },
+  // アプリ(Expo Webの書き出し)とAPIを同じ場所(オリジン)から配る。パスに合う
+  // ファイルがあればそれを返し、無ければWorkerが処理する(/api/* はここに来る)。
+  "assets": {
+    "directory": "../app/dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
   },
   "triggers": {
     // 週次カード: 日曜21:00 JST(12:00 UTC)。繰り越しぶんの記録・ありがとう: 翌8:00 JST(23:00 UTC)。

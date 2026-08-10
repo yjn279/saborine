@@ -20,14 +20,12 @@ export type AppEnv = {
 };
 
 // Hono本体を組み立てる。dbは呼び出し側(Worker本体またはテスト)が用意したものを差し込む。
-// トップページの動作確認だけは、データベースが無くても200を返せるようにしておく。
 export function createApp(db: Db) {
   const app = new Hono<AppEnv>();
 
-  app.get("/", (c) => c.text("元気です"));
-
-  // アプリ(Expo Web)はAPIと別オリジンで動く。Bearerトークン認証でCookieは使わないため、
-  // 資格情報の共有は必要ない。
+  // 本番ではアプリとAPIが同じ場所(オリジン)にあるため、この許可は使われない。
+  // 開発中だけアプリ(ポート8081)とAPI(ポート8787)が別の場所で動くために要る。
+  // Bearerトークン認証でCookieは使わないため、資格情報の共有は必要ない。
   app.use("/api/*", cors());
 
   app.use("/api/*", async (c, next) => {
