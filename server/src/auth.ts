@@ -41,13 +41,28 @@ export function validateRegistrationInput(body: unknown): RegistrationValidation
   return { ok: true, input: { displayName, userId, secret } };
 }
 
-// 指定したIDのユーザーがすでに登録済みかどうか。
-export async function isUserIdRegistered(db: Db, userId: string): Promise<boolean> {
+export interface RegisteredUser {
+  pairId: string;
+  displayName: string;
+  secretHash: string;
+}
+
+// 指定したIDのユーザーがすでに登録済みなら、その中身を返す。
+// 呼び出し側は合言葉が一致するかで「同じ端末からの送り直し」と「別人の衝突」を見分ける。
+export async function findRegisteredUser(db: Db, userId: string): Promise<RegisteredUser | null> {
   const existing = await db.execute({
-    sql: "SELECT id FROM users WHERE id = ?",
+    sql: "SELECT pair_id, display_name, secret_hash FROM users WHERE id = ?",
     args: [userId],
   });
-  return existing.rows.length > 0;
+  const row = existing.rows[0];
+  if (!row) {
+    return null;
+  }
+  return {
+    pairId: String(row.pair_id),
+    displayName: String(row.display_name),
+    secretHash: String(row.secret_hash),
+  };
 }
 
 // 合言葉をSHA-256でハッシュ化して保存用の文字列にする。平文のまま保存しないための処理。

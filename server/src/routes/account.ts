@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.js";
-import { authMiddleware, hashSecret, isUserIdRegistered, validateRegistrationInput } from "../auth.js";
+import { authMiddleware, findRegisteredUser, hashSecret, validateRegistrationInput } from "../auth.js";
 
 const CHARACTER_NAME = "サボリーヌ";
 
@@ -17,14 +17,35 @@ export function createAccountRoutes() {
     const { displayName, userId, secret } = validation.input;
 
     const db = c.get("db");
-    if (await isUserIdRegistered(db, userId)) {
-      return c.json({ error: "すでに登録されています" }, 409);
+    const secretHashForInput = await hashSecret(secret);
+    const existing = await findRegisteredUser(db, userId);
+    if (existing) {
+      // 同じ身分証での送り直し。前回の応答が届かなかった場合にここへ来る。
+      // 新しく作り直すと、前回できたペアが誰も辿れないまま残ってしまうため、
+      // 前回の登録をそのまま返す。合言葉が違えば別人なので断る。
+      if (existing.secretHash !== secretHashForInput) {
+        return c.json({ error: "すでに登録されています" }, 409);
+      }
+      const characterResult = await db.execute({
+        sql: "SELECT id, name FROM characters WHERE pair_id = ?",
+        args: [existing.pairId],
+      });
+      const character = characterResult.rows[0];
+      if (!character) {
+        return c.json({ error: "ペアが見つかりません" }, 404);
+      }
+      return c.json({
+        userId,
+        displayName: existing.displayName,
+        pairId: existing.pairId,
+        characterId: String(character.id),
+        characterName: String(character.name),
+      });
     }
 
     const pairId = crypto.randomUUID();
     const characterId = crypto.randomUUID();
     const inviteToken = crypto.randomUUID();
-    const secretHash = await hashSecret(secret);
 
     await db.batch(
       [
@@ -34,7 +55,7 @@ export function createAccountRoutes() {
         },
         {
           sql: "INSERT INTO users (id, pair_id, display_name, secret_hash) VALUES (?, ?, ?, ?)",
-          args: [userId, pairId, displayName, secretHash],
+          args: [userId, pairId, displayName, secretHashForInput],
         },
         {
           sql: "INSERT INTO characters (id, pair_id, name) VALUES (?, ?, ?)",

@@ -32,6 +32,8 @@ export default function Join() {
   // サーバーへ再度受諾リクエストを送らず(定員はすでに埋まっているため)保存だけを
   // やり直す。
   const [pendingIdentity, setPendingIdentity] = useState<Identity | null>(null);
+  // 受諾が失敗した回の身分証。やり直しは同じものを使う。
+  const [attemptedIdentity, setAttemptedIdentity] = useState<Identity | null>(null);
 
   const [joinedIdentity, setJoinedIdentity] = useState<Identity | null>(null);
   const [homeState, setHomeState] = useState<HomeState | null>(null);
@@ -81,6 +83,9 @@ export default function Join() {
 
   const applyJoinResult = async (result: IdentityRegistrationResult) => {
     if (result.status === "api-error") {
+      // やり直すときは同じ身分証で送り直す。作り直すと、実は成立していた受諾に
+      // 戻れないまま、招待だけが使い切られてどこにも入れなくなる。
+      setAttemptedIdentity(result.identity);
       setJoinError(result.error instanceof ApiError ? result.error.message : "なかまに なれませんでした");
       setSubmitting(false);
       return;
@@ -93,6 +98,7 @@ export default function Join() {
     }
 
     setPendingIdentity(null);
+    setAttemptedIdentity(null);
     setJoinedIdentity(result.identity);
     try {
       const state = await fetchHomeState(result.identity);
@@ -109,12 +115,14 @@ export default function Join() {
     }
     setSubmitting(true);
     setJoinError(null);
-    const result = await registerIdentity((identity) =>
-      acceptInvite(token, {
-        displayName: trimmedName,
-        userId: identity.userId,
-        secret: identity.secret,
-      }),
+    const result = await registerIdentity(
+      (identity) =>
+        acceptInvite(token, {
+          displayName: trimmedName,
+          userId: identity.userId,
+          secret: identity.secret,
+        }),
+      attemptedIdentity ?? undefined,
     );
     await applyJoinResult(result);
   };

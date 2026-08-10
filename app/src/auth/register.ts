@@ -7,18 +7,21 @@ import { createIdentity, saveIdentity, type Identity } from "./identity";
 // ようにする(retrySaveIdentity)。
 export type IdentityRegistrationResult =
   | { status: "success"; identity: Identity }
-  | { status: "api-error"; error: unknown }
+  | { status: "api-error"; identity: Identity; error: unknown }
   | { status: "save-error"; identity: Identity };
 
 // サーバー側の登録・受諾を1回行い、成功したら端末への保存を試みる。
+// 前回の身分証を渡すと、それをそのまま使って送り直す。新しく作り直すと、前回の
+// 応答が届かなかっただけで実は成立していた場合に、誰も辿れないペアが残ってしまう。
 export async function registerIdentity(
   register: (identity: Identity) => Promise<unknown>,
+  previousAttempt?: Identity,
 ): Promise<IdentityRegistrationResult> {
-  const identity = createIdentity();
+  const identity = previousAttempt ?? createIdentity();
   try {
     await register(identity);
   } catch (error) {
-    return { status: "api-error", error };
+    return { status: "api-error", identity, error };
   }
   return retrySaveIdentity(identity);
 }
