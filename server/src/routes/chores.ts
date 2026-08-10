@@ -4,6 +4,27 @@ import { authMiddleware } from "../auth.js";
 import { parseStoredTimestamp } from "../db.js";
 import { CHORE_PRESETS, orderPresetsByRecentUse } from "../domain/presets.js";
 import { recalculateGrowthPoints } from "../growth-ledger.js";
+import { resolveDeliveryTime } from "../push/notifications.js";
+import { notifyUser } from "../scheduled.js";
+import type { Db } from "../db.js";
+
+// 記録・ありがとうの直後に、いま(=occurredAt)が夜間(22時〜翌8時JST)でなければその場で届ける。
+// 夜間なら何もせず、翌朝の予定実行(scheduled.tsのdeliverQuietHourNotifications)に任せ、二重送信を避ける。
+async function notifyIfImmediate(
+  db: Db,
+  pushConfig: Parameters<typeof notifyUser>[1] | undefined,
+  recipientUserId: string,
+  kind: "chore_recorded" | "thanks_received",
+  occurredAt: Date,
+): Promise<void> {
+  if (!pushConfig) {
+    return;
+  }
+  if (resolveDeliveryTime(occurredAt).getTime() !== occurredAt.getTime()) {
+    return;
+  }
+  await notifyUser(db, pushConfig, recipientUserId, kind);
+}
 
 const CHORE_TYPE_MAX_LENGTH = 30;
 
@@ -62,8 +83,25 @@ export function createChoreRoutes() {
       sql: "SELECT created_at FROM chore_logs WHERE id = ?",
       args: [id],
     });
+    const createdAt = String(created.rows[0]?.created_at);
 
-    return c.json({ id, choreType, createdAt: String(created.rows[0]?.created_at) }, 201);
+    // 記録のお知らせは、記録した本人ではなく相手に届ける。相手がお知らせをオフにしていれば届けない。
+    const partnerResult = await db.execute({
+      sql: "SELECT id FROM users WHERE pair_id = ? AND id != ? AND notifications_enabled = 1",
+      args: [user.pairId, user.id],
+    });
+    const partner = partnerResult.rows[0];
+    if (partner) {
+      await notifyIfImmediate(
+        db,
+        c.get("pushConfig"),
+        String(partner.id),
+        "chore_recorded",
+        parseStoredTimestamp(createdAt),
+      );
+    }
+
+    return c.json({ id, choreType, createdAt }, 201);
   });
 
   // 相手の記録に「ありがとう」を1回だけ返す。自分の記録には送れず、2回目は失敗する。
@@ -109,22 +147,41 @@ export function createChoreRoutes() {
     );
 
     // 直近の進化(または結成)以降の当月ぶんの成長ポイントを求め直す(server/src/growth-ledger.ts)。
+    // ペア解除(DELETE /api/pair)と競合してキャラクター行がすでに無い場合は、対象が
+    // 存在しないので再計算そのものをスキップする(ありがとうの保存自体は済んでいる)。
     const characterResult = await db.execute({
       sql: "SELECT growth_cycle_started_at FROM characters WHERE pair_id = ?",
       args: [user.pairId],
     });
-    const cycleStartedAt = parseStoredTimestamp(characterResult.rows[0]?.growth_cycle_started_at);
-    await recalculateGrowthPoints(db, user.pairId, cycleStartedAt, new Date());
+    const characterRow = characterResult.rows[0];
+    if (characterRow) {
+      const cycleStartedAt = parseStoredTimestamp(characterRow.growth_cycle_started_at);
+      await recalculateGrowthPoints(db, user.pairId, cycleStartedAt, new Date());
+    }
 
     const created = await db.execute({
       sql: "SELECT created_at FROM thanks WHERE id = ?",
       args: [thanksId],
     });
+    const createdAt = String(created.rows[0]?.created_at);
 
-    return c.json(
-      { id: thanksId, choreLogId, createdAt: String(created.rows[0]?.created_at) },
-      201,
-    );
+    // ありがとうのお知らせは、記録した本人(log.user_id)に届ける。お知らせをオフにしていれば届けない。
+    const recipientResult = await db.execute({
+      sql: "SELECT notifications_enabled FROM users WHERE id = ?",
+      args: [String(log.user_id)],
+    });
+    const recipient = recipientResult.rows[0];
+    if (recipient && Number(recipient.notifications_enabled) === 1) {
+      await notifyIfImmediate(
+        db,
+        c.get("pushConfig"),
+        String(log.user_id),
+        "thanks_received",
+        parseStoredTimestamp(createdAt),
+      );
+    }
+
+    return c.json({ id: thanksId, choreLogId, createdAt }, 201);
   });
 
   return routes;

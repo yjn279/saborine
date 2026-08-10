@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { LibsqlError } from "@libsql/client/web";
 import type { Db } from "./db.js";
 import type { AuthedUser } from "./auth.js";
+import type { WebPushConfig } from "./push/send.js";
 import { createAccountRoutes } from "./routes/account.js";
 import { createInviteRoutes } from "./routes/invite.js";
 import { createChoreRoutes } from "./routes/chores.js";
@@ -16,11 +17,14 @@ export type AppEnv = {
   Variables: {
     db: Db;
     user: AuthedUser;
+    // 記録・ありがとうの直後に即時プッシュ通知を送るためのVAPID設定(docs/mvp.md:126)。
+    // 未設定の環境(テスト等)では即時送信そのものをスキップする。
+    pushConfig: WebPushConfig | undefined;
   };
 };
 
 // Hono本体を組み立てる。dbは呼び出し側(Worker本体またはテスト)が用意したものを差し込む。
-export function createApp(db: Db) {
+export function createApp(db: Db, pushConfig?: WebPushConfig) {
   const app = new Hono<AppEnv>();
 
   // 本番ではアプリとAPIが同じ場所(オリジン)にあるため、この許可は使われない。
@@ -30,6 +34,7 @@ export function createApp(db: Db) {
 
   app.use("/api/*", async (c, next) => {
     c.set("db", db);
+    c.set("pushConfig", pushConfig);
     await next();
   });
 

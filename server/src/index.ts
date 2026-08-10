@@ -25,10 +25,19 @@ function vapidConfig(env: Env): { vapidKeyPair: VapidKeyPair; subject: string } 
   };
 }
 
+// 記録・ありがとうの直後の即時プッシュ通知(docs/mvp.md:126)に使う。予定実行(cron)と違い
+// この設定が無くても記録自体は続けられるべきなので、未設定なら即時送信を諦めるだけに留める。
+function optionalVapidConfig(env: Env): { vapidKeyPair: VapidKeyPair; subject: string } | undefined {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) {
+    return undefined;
+  }
+  return vapidConfig(env);
+}
+
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const db = createDb({ url: env.DB_URL ?? LOCAL_DB_URL, authToken: env.DB_AUTH_TOKEN });
-    return createApp(db).fetch(request, env, ctx);
+    return createApp(db, optionalVapidConfig(env)).fetch(request, env, ctx);
   },
 
   // 週次カードと、22時〜翌8時に起きた出来事の繰り越し配信を、予定実行(Cron Triggers)から呼ぶ。
