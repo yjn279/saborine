@@ -59,15 +59,15 @@ export default function Weekly() {
 
   if (!identity || (!card && !errorMessage)) {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         <ActivityIndicator />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>こんしゅうの おはなし</Text>
+    <View style={commonStyles.screenContainer}>
+      <Text style={commonStyles.title}>こんしゅうの おはなし</Text>
 
       {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
 
@@ -86,8 +86,8 @@ export default function Weekly() {
 
       {card ? (
         <View style={styles.actions}>
-          <Pressable style={styles.shareButton} onPress={handleShare}>
-            <Text style={styles.shareButtonText}>
+          <Pressable style={[commonStyles.shareButton, styles.shareButton]} onPress={handleShare}>
+            <Text style={commonStyles.shareButtonText}>
               {shared ? "コピーしたよ" : "ほぞん・きょうゆうする"}
             </Text>
           </Pressable>
@@ -100,18 +100,6 @@ export default function Weekly() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-    padding: 24,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
   card: {
     width: "100%",
     maxWidth: 320,
@@ -136,16 +124,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   shareButton: {
-    backgroundColor: "#e76f51",
-    borderRadius: 24,
-    paddingHorizontal: 28,
-    paddingVertical: 12,
     minWidth: 220,
-    alignItems: "center",
-  },
-  shareButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
   },
 });

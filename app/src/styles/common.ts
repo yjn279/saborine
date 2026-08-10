@@ -37,4 +37,21 @@ export const commonStyles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  title: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+  },
+  shareButton: {
+    backgroundColor: "#e76f51",
+    borderRadius: 24,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  shareButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
 });

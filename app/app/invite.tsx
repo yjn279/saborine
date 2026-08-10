@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { ApiError } from "../src/api/client";
+import { ApiError, WEB_BASE_URL } from "../src/api/client";
 import { fetchInviteLetter, type InviteLetter } from "../src/api/invite";
 import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
@@ -66,7 +66,7 @@ export default function Invite() {
   }, [identity]);
 
   const absoluteLink = (link: string) =>
-    Platform.OS === "web" ? `${window.location.origin}${link}` : link;
+    Platform.OS === "web" ? `${window.location.origin}${link}` : `${WEB_BASE_URL}${link}`;
 
   const handleShare = async () => {
     if (!letter) {
@@ -89,15 +89,15 @@ export default function Invite() {
 
   if (!identity || (!letter && !loadError)) {
     return (
-      <View style={styles.container}>
+      <View style={commonStyles.screenContainer}>
         <ActivityIndicator />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>サボリーヌの てがみ</Text>
+    <View style={commonStyles.screenContainer}>
+      <Text style={commonStyles.title}>サボリーヌの てがみ</Text>
 
       {loadError ? <Text style={commonStyles.error}>{loadError}</Text> : null}
 
@@ -117,8 +117,8 @@ export default function Invite() {
               {showReminder ? (
                 <Text style={styles.hint}>いっしょに いるときに がめんを みせて さそうのも おすすめだよ</Text>
               ) : null}
-              <Pressable style={styles.shareButton} onPress={handleShare}>
-                <Text style={styles.shareButtonText}>リンクを おくる</Text>
+              <Pressable style={[commonStyles.shareButton, styles.shareButton]} onPress={handleShare}>
+                <Text style={commonStyles.shareButtonText}>リンクを おくる</Text>
               </Pressable>
               <Pressable style={styles.copyButton} onPress={handleCopy}>
                 <Text style={styles.copyButtonText}>{copied ? "コピーしたよ" : "リンクを コピーする"}</Text>
@@ -134,18 +134,6 @@ export default function Invite() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-    padding: 24,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
   confirmBox: {
     alignItems: "center",
     gap: 10,
@@ -178,17 +166,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   shareButton: {
-    backgroundColor: "#e76f51",
-    borderRadius: 24,
-    paddingHorizontal: 28,
-    paddingVertical: 12,
     minWidth: 200,
-    alignItems: "center",
-  },
-  shareButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
   },
   copyButton: {
     paddingHorizontal: 16,
