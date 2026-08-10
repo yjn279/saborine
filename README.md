@@ -58,8 +58,47 @@ npm run typecheck  # 型チェック（app・server それぞれ）
 npm test           # 自動テスト（いまはserverのみ）
 ```
 
-## Webの書き出し
+## 本番へ出す
+
+アプリとAPIは1つの Cloudflare Worker（名前は `saborine`）から同じ場所（オリジン）で配る。アプリを書き出してから Worker を出す、という2手を1つのコマンドにまとめてある。
 
 ```sh
-cd app && npx expo export --platform web
+npm run deploy
 ```
+
+公開先は `https://saborine.<アカウントのサブドメイン>.workers.dev` になる。
+
+### 初回だけ必要な準備
+
+1. Cloudflare と Turso にログインする。
+
+   ```sh
+   npx wrangler login
+   turso auth login
+   ```
+
+2. 本番のデータベースを作り、テーブルを用意する。
+
+   ```sh
+   turso db create saborine --group default
+   node server/scripts/migrate.mjs "$(turso db show saborine --url)?authToken=$(turso db tokens create saborine)"
+   ```
+
+3. 通知の署名に使う鍵（VAPID鍵）を作る。公開鍵は `app/.env.production` に書いてある値と一致させる。作り直した場合は両方を差し替える。
+
+   ```sh
+   npx web-push generate-vapid-keys
+   ```
+
+4. 秘密の設定を Worker に登録する。それぞれ対話で値を貼り付ける。
+
+   ```sh
+   cd server
+   npx wrangler secret put DB_URL            # turso db show saborine --url の値
+   npx wrangler secret put DB_AUTH_TOKEN     # turso db tokens create saborine の値
+   npx wrangler secret put VAPID_PUBLIC_KEY
+   npx wrangler secret put VAPID_PRIVATE_KEY
+   npx wrangler secret put VAPID_SUBJECT     # mailto: から始まる連絡先
+   ```
+
+`app/.env.production` に秘密は入れない。ここに書く値はブラウザに配られるため、公開してよいものだけを置く。
