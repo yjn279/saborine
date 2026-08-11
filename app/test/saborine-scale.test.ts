@@ -6,9 +6,9 @@ const STAGES_WITH_HEADROOM = [0, 1, 2] as const;
 describe("サボリーヌの大きさの決定(calcScale)", () => {
   it("育ち具合0のときは、いまの段階だけで決まる大きさと一致する(段階0〜4)", () => {
     for (let stage = 0; stage <= 4; stage++) {
-      const legacyScale = 0.9 + Math.min(stage, 3) * 0.06;
+      const stageOnlyScale = 0.9 + Math.min(stage, 3) * 0.06;
 
-      expect(calcScale(stage, 0)).toBeCloseTo(legacyScale);
+      expect(calcScale(stage, 0)).toBeCloseTo(stageOnlyScale);
     }
   });
 
