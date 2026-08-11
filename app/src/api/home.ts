@@ -4,6 +4,14 @@ import { apiRequest } from "./client";
 
 // サーバーとやりとりする値の形。サーバー側(server/src/routes/home.ts, chores.ts)の出力に合わせる。
 
+// きょう、ふたりに起きたこと1件。件数・時刻・順位は持たない(docs/mvp.mdの「持たないデータ」)。
+export interface TodayEvent {
+  id: string;
+  choreType: string;
+  mine: boolean;
+  thanked: boolean;
+}
+
 export interface HomeState {
   isPaired: boolean;
   saborine: {
@@ -27,6 +35,8 @@ export interface HomeState {
     createdAt: string;
     thanked: boolean;
   } | null;
+  // 新しい順、最大6件。自分の記録と相手の記録の両方を含む。
+  todayEvents: TodayEvent[];
 }
 
 export function fetchHomeState(identity: Identity): Promise<HomeState> {
