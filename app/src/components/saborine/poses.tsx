@@ -5,65 +5,173 @@ import type { SaborineGesture, SaborineLineage, SaborinePose } from "./types";
 // 100x100の枠の中に、犬「サボリーヌ」を描く。姿の差分だけが感情を運ぶため、
 // 5つの姿はすべて別関数として独立させ、混ざらないようにする。
 // だらしな以外は座った姿勢、だらしなだけ横になった姿勢にする。
+//
+// 描き方の決めごと:
+// - 体は必ず地面の影の上に置く。影が無いと宙に浮いて見える
+// - 輪郭線を1本入れる。塗りだけだと形が溶けて、作りかけに見える
+// - 頭と体の境目に陰を入れる。同じ色の丸を2つ重ねただけでは雪だるまになる
+// - 手足と尻尾は体に重ねて描く。離すと切り離された部品に見える
+// - 目にはハイライトを入れる。これがかわいさにいちばん効く
 
-const BODY_FILL = "#F6E1BE";
-const EAR_FILL = "#E3AE74";
-const SHADE_FILL = "#EAD0A3";
-const LINE_COLOR = "#6B5237";
-const BLUSH_FILL = "#F3AFAE";
+const BODY_FILL = "#F7E3C3";
+const BODY_SHADE = "#EBD0A6";
+const EAR_FILL = "#DFA269";
+const EAR_INNER = "#C98A57";
+const OUTLINE = "#C9A87C";
+const LINE_COLOR = "#5C4630";
+const BLUSH_FILL = "#F4A9A6";
+const TONGUE_FILL = "#E98787";
+const SHADOW_FILL = "#D8C4A4";
 
-function legs() {
+const OUTLINE_WIDTH = 1.2;
+
+// 地面の影。座っている姿と寝ている姿で広さを変える。
+function groundShadow(cx: number, cy: number, rx: number) {
+  return <Ellipse cx={cx} cy={cy} rx={rx} ry={rx * 0.22} fill={SHADOW_FILL} opacity={0.45} />;
+}
+
+// 座った姿勢の胴。前足を胴に重ね、胴の下側に陰を入れて丸みを出す。
+function sittingBody(cy: number) {
   return (
     <G>
-      <Ellipse cx={38} cy={83} rx={5} ry={7} fill={BODY_FILL} />
-      <Ellipse cx={62} cy={83} rx={5} ry={7} fill={BODY_FILL} />
+      <Ellipse
+        cx={50}
+        cy={cy}
+        rx={23}
+        ry={17}
+        fill={BODY_FILL}
+        stroke={OUTLINE}
+        strokeWidth={OUTLINE_WIDTH}
+      />
+      <Path
+        d={`M30 ${cy + 6} Q50 ${cy + 20} 70 ${cy + 6} Q50 ${cy + 14} 30 ${cy + 6} z`}
+        fill={BODY_SHADE}
+        opacity={0.7}
+      />
+      <Ellipse
+        cx={39}
+        cy={cy + 13}
+        rx={6}
+        ry={5}
+        fill={BODY_FILL}
+        stroke={OUTLINE}
+        strokeWidth={OUTLINE_WIDTH}
+      />
+      <Ellipse
+        cx={61}
+        cy={cy + 13}
+        rx={6}
+        ry={5}
+        fill={BODY_FILL}
+        stroke={OUTLINE}
+        strokeWidth={OUTLINE_WIDTH}
+      />
     </G>
   );
 }
 
-function earsRelaxed() {
+// 頭。首もとに陰を落として、胴と地続きに見えないようにする。
+function head(cy: number, r = 18.5) {
   return (
     <G>
-      <Ellipse cx={35} cy={31} rx={7} ry={12} fill={EAR_FILL} transform="rotate(-18 35 31)" />
-      <Ellipse cx={65} cy={31} rx={7} ry={12} fill={EAR_FILL} transform="rotate(18 65 31)" />
+      <Ellipse cx={50} cy={cy + r - 1} rx={r * 0.78} ry={4.2} fill={BODY_SHADE} opacity={0.85} />
+      <Circle cx={50} cy={cy} r={r} fill={BODY_FILL} stroke={OUTLINE} strokeWidth={OUTLINE_WIDTH} />
     </G>
   );
 }
 
-function blush() {
+function ear(cx: number, cy: number, rotate: number) {
   return (
-    <G>
-      <Ellipse cx={38} cy={46} rx={3.5} ry={2.2} fill={BLUSH_FILL} />
-      <Ellipse cx={62} cy={46} rx={3.5} ry={2.2} fill={BLUSH_FILL} />
+    <G transform={`rotate(${rotate} ${cx} ${cy})`}>
+      <Ellipse
+        cx={cx}
+        cy={cy}
+        rx={7.5}
+        ry={12.5}
+        fill={EAR_FILL}
+        stroke={OUTLINE}
+        strokeWidth={OUTLINE_WIDTH}
+      />
+      <Ellipse cx={cx} cy={cy + 1} rx={3.6} ry={7.5} fill={EAR_INNER} />
     </G>
   );
 }
 
-function tailCurled() {
+// 開いた目。白目は描かず、黒目とハイライトだけで丸い瞳にする。
+function openEye(cx: number, cy: number) {
+  return (
+    <G>
+      <Ellipse cx={cx} cy={cy} rx={3.8} ry={4.3} fill={LINE_COLOR} />
+      <Circle cx={cx - 1.2} cy={cy - 1.6} r={1.4} fill="#FFFFFF" />
+      <Circle cx={cx + 1.3} cy={cy + 1.5} r={0.6} fill="#FFFFFF" opacity={0.7} />
+    </G>
+  );
+}
+
+// 閉じた目(よろこび・食事)。上向きの弧にする。
+function happyEye(cx: number, cy: number) {
   return (
     <Path
-      d="M71 62 C 82 58, 84 46, 76 40"
-      stroke={EAR_FILL}
-      strokeWidth={6}
+      d={`M${cx - 3.4} ${cy + 1} Q${cx} ${cy - 3.6} ${cx + 3.4} ${cy + 1}`}
+      stroke={LINE_COLOR}
+      strokeWidth={2}
       strokeLinecap="round"
       fill="none"
     />
   );
 }
 
+function muzzle(cy: number) {
+  return (
+    <G>
+      <Ellipse cx={50} cy={cy + 1.5} rx={8} ry={5.8} fill="#FCEFD8" />
+      <Ellipse cx={50} cy={cy} rx={2.9} ry={2.1} fill={LINE_COLOR} />
+      <Path
+        d={`M50 ${cy + 2} L50 ${cy + 3.6}`}
+        stroke={LINE_COLOR}
+        strokeWidth={1.3}
+        strokeLinecap="round"
+      />
+    </G>
+  );
+}
+
+function blush(cy: number) {
+  return (
+    <G opacity={0.75}>
+      <Ellipse cx={36} cy={cy} rx={4} ry={2.4} fill={BLUSH_FILL} />
+      <Ellipse cx={64} cy={cy} rx={4} ry={2.4} fill={BLUSH_FILL} />
+    </G>
+  );
+}
+
+// 尻尾。胴の右側から生えるように、付け根を胴に食い込ませる。
+function tail(d: string) {
+  return (
+    <Path d={d} stroke={EAR_FILL} strokeWidth={6.5} strokeLinecap="round" fill="none" />
+  );
+}
+
 function normalPose() {
   return (
     <G>
-      {legs()}
-      <Ellipse cx={50} cy={68} rx={22} ry={16} fill={BODY_FILL} />
-      {tailCurled()}
-      {earsRelaxed()}
-      <Circle cx={50} cy={42} r={18} fill={BODY_FILL} />
-      {blush()}
-      <Circle cx={43} cy={40} r={2.2} fill={LINE_COLOR} />
-      <Circle cx={57} cy={40} r={2.2} fill={LINE_COLOR} />
-      <Ellipse cx={50} cy={47} rx={2.4} ry={1.8} fill={LINE_COLOR} />
-      <Path d="M46 51 Q50 53 54 51" stroke={LINE_COLOR} strokeWidth={1.6} strokeLinecap="round" fill="none" />
+      {groundShadow(50, 88, 26)}
+      {tail("M64 66 C 79 63, 81 50, 73 43")}
+      {sittingBody(68)}
+      {ear(34, 32, -18)}
+      {ear(66, 32, 18)}
+      {head(42)}
+      {blush(47)}
+      {openEye(43.5, 40)}
+      {openEye(56.5, 40)}
+      {muzzle(47)}
+      <Path
+        d="M45.5 51.5 Q50 54.5 54.5 51.5"
+        stroke={LINE_COLOR}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        fill="none"
+      />
     </G>
   );
 }
@@ -71,24 +179,24 @@ function normalPose() {
 function happyPose() {
   return (
     <G>
-      {legs()}
-      <Ellipse cx={50} cy={68} rx={22} ry={16} fill={BODY_FILL} />
+      {groundShadow(50, 88, 26)}
+      {tail("M64 64 C 82 57, 85 42, 75 33")}
+      {sittingBody(68)}
+      {ear(33, 29, -32)}
+      {ear(67, 29, 32)}
+      {head(40)}
+      {blush(45)}
+      {happyEye(43.5, 38)}
+      {happyEye(56.5, 38)}
+      {muzzle(45)}
       <Path
-        d="M71 60 C 85 52, 88 40, 78 32"
-        stroke={EAR_FILL}
-        strokeWidth={6}
+        d="M44 49 Q50 56.5 56 49"
+        stroke={LINE_COLOR}
+        strokeWidth={1.8}
         strokeLinecap="round"
         fill="none"
       />
-      <Ellipse cx={34} cy={28} rx={7} ry={12} fill={EAR_FILL} transform="rotate(-30 34 28)" />
-      <Ellipse cx={66} cy={28} rx={7} ry={12} fill={EAR_FILL} transform="rotate(30 66 28)" />
-      <Circle cx={50} cy={40} r={18} fill={BODY_FILL} />
-      {blush()}
-      <Path d="M40 38 Q43 34 46 38" stroke={LINE_COLOR} strokeWidth={2} strokeLinecap="round" fill="none" />
-      <Path d="M54 38 Q57 34 60 38" stroke={LINE_COLOR} strokeWidth={2} strokeLinecap="round" fill="none" />
-      <Ellipse cx={50} cy={45} rx={2.4} ry={1.8} fill={LINE_COLOR} />
-      <Path d="M44 49 Q50 56 56 49" stroke={LINE_COLOR} strokeWidth={1.8} strokeLinecap="round" fill="none" />
-      <Ellipse cx={50} cy={54} rx={2.6} ry={3.4} fill="#E98787" />
+      <Ellipse cx={50} cy={53.5} rx={2.6} ry={3.2} fill={TONGUE_FILL} />
     </G>
   );
 }
@@ -96,17 +204,19 @@ function happyPose() {
 function eatingPose() {
   return (
     <G>
-      {legs()}
-      <Ellipse cx={50} cy={68} rx={22} ry={16} fill={BODY_FILL} />
-      {tailCurled()}
-      <Ellipse cx={35} cy={38} rx={7} ry={12} fill={EAR_FILL} transform="rotate(-10 35 38)" />
-      <Ellipse cx={65} cy={38} rx={7} ry={12} fill={EAR_FILL} transform="rotate(10 65 38)" />
-      <Circle cx={50} cy={50} r={17} fill={BODY_FILL} />
-      <Path d="M41 47 Q44 44 47 47" stroke={LINE_COLOR} strokeWidth={2} strokeLinecap="round" fill="none" />
-      <Path d="M53 47 Q56 44 59 47" stroke={LINE_COLOR} strokeWidth={2} strokeLinecap="round" fill="none" />
-      <Ellipse cx={50} cy={56} rx={2.4} ry={1.8} fill={LINE_COLOR} />
-      <Ellipse cx={38} cy={86} rx={13} ry={5} fill="#D9915B" />
-      <Ellipse cx={38} cy={84} rx={10} ry={3.4} fill="#F0B26B" />
+      {groundShadow(50, 88, 26)}
+      {tail("M64 66 C 79 63, 81 50, 73 43")}
+      {sittingBody(68)}
+      {ear(34, 39, -10)}
+      {ear(66, 39, 10)}
+      {head(50, 17.5)}
+      {happyEye(43.5, 47)}
+      {happyEye(56.5, 47)}
+      {muzzle(56)}
+      {/* ごはんのおさら。犬より手前に置く */}
+      <Ellipse cx={36} cy={87} rx={13} ry={4.6} fill="#C97F4A" />
+      <Ellipse cx={36} cy={85} rx={10.5} ry={3.6} fill="#F0B26B" />
+      <Ellipse cx={34} cy={84} rx={3} ry={1.6} fill="#FFD9A6" opacity={0.8} />
     </G>
   );
 }
@@ -114,19 +224,38 @@ function eatingPose() {
 function sleepyPose() {
   return (
     <G>
-      {legs()}
-      <Ellipse cx={50} cy={70} rx={22} ry={15} fill={BODY_FILL} />
-      <Ellipse cx={36} cy={35} rx={7} ry={11} fill={EAR_FILL} transform="rotate(4 36 35)" />
-      <Ellipse cx={64} cy={35} rx={7} ry={11} fill={EAR_FILL} transform="rotate(-4 64 35)" />
-      <Circle cx={50} cy={44} r={18} fill={BODY_FILL} />
-      <Path d="M39 44 L47 44" stroke={LINE_COLOR} strokeWidth={2} strokeLinecap="round" />
-      <Path d="M53 44 L61 44" stroke={LINE_COLOR} strokeWidth={2} strokeLinecap="round" />
-      <Ellipse cx={50} cy={49} rx={2.2} ry={1.6} fill={LINE_COLOR} />
-      <Path d="M46 53 Q50 54 54 53" stroke={LINE_COLOR} strokeWidth={1.4} strokeLinecap="round" fill="none" />
-      <SvgText x={66} y={26} fontSize={9} fill={LINE_COLOR}>
+      {groundShadow(50, 89, 26)}
+      {sittingBody(70)}
+      {ear(35, 36, 6)}
+      {ear(65, 36, -6)}
+      {head(44)}
+      {blush(49)}
+      <Path
+        d="M39 43.5 Q42.5 46.5 46 43.5"
+        stroke={LINE_COLOR}
+        strokeWidth={2}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <Path
+        d="M54 43.5 Q57.5 46.5 61 43.5"
+        stroke={LINE_COLOR}
+        strokeWidth={2}
+        strokeLinecap="round"
+        fill="none"
+      />
+      {muzzle(49)}
+      <Path
+        d="M46.5 53.5 Q50 55 53.5 53.5"
+        stroke={LINE_COLOR}
+        strokeWidth={1.4}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <SvgText x={70} y={26} fontSize={10} fill={LINE_COLOR} opacity={0.7}>
         Z
       </SvgText>
-      <SvgText x={74} y={18} fontSize={6} fill={LINE_COLOR}>
+      <SvgText x={79} y={17} fontSize={6.5} fill={LINE_COLOR} opacity={0.55}>
         z
       </SvgText>
     </G>
@@ -134,32 +263,50 @@ function sleepyPose() {
 }
 
 // だらしな: ぐうたら寝転がる・寝ぐせ・おもちゃの散らかしとして愛嬌に描く。
-// 涙・下がった眉・暗い色は使わず、閉じた口元と軽い笑みだけにとどめる(docs/mvp.md:144)。
+// 涙・下がった眉・暗い色は使わず、閉じた口元と軽い笑みだけにとどめる(docs/mvp.md)。
 function sloppyPose() {
   return (
     <G>
-      <Ellipse cx={50} cy={78} rx={30} ry={13} fill={SHADE_FILL} opacity={0.6} />
-      <Ellipse cx={52} cy={70} rx={26} ry={15} fill={BODY_FILL} />
-      <Ellipse cx={30} cy={78} rx={6} ry={4} fill={BODY_FILL} />
-      <Ellipse cx={74} cy={78} rx={6} ry={4} fill={BODY_FILL} />
-      <Ellipse cx={29} cy={58} rx={7} ry={11} fill={EAR_FILL} transform="rotate(80 29 58)" />
-      <Circle cx={38} cy={54} r={17} fill={BODY_FILL} />
+      {groundShadow(52, 84, 32)}
+      {/* 横になった胴。後ろ足を先に置いて胴で隠す */}
+      <Ellipse cx={72} cy={76} rx={7} ry={4.5} fill={BODY_FILL} stroke={OUTLINE} strokeWidth={OUTLINE_WIDTH} />
+      <Ellipse
+        cx={53}
+        cy={70}
+        rx={27}
+        ry={15}
+        fill={BODY_FILL}
+        stroke={OUTLINE}
+        strokeWidth={OUTLINE_WIDTH}
+      />
+      <Path d="M28 74 Q53 86 78 74 Q53 80 28 74 z" fill={BODY_SHADE} opacity={0.7} />
+      {/* 投げ出した前足 */}
+      <Ellipse cx={30} cy={79} rx={7} ry={4.5} fill={BODY_FILL} stroke={OUTLINE} strokeWidth={OUTLINE_WIDTH} />
+      {/* 垂れた耳 */}
+      <G transform="rotate(66 24 62)">
+        <Ellipse cx={24} cy={62} rx={7} ry={12} fill={EAR_FILL} stroke={OUTLINE} strokeWidth={OUTLINE_WIDTH} />
+        <Ellipse cx={24} cy={63} rx={3.4} ry={7} fill={EAR_INNER} />
+      </G>
+      <Ellipse cx={38} cy={68} rx={12} ry={3} fill={BODY_SHADE} opacity={0.5} />
+      <Circle cx={38} cy={54} r={17.5} fill={BODY_FILL} stroke={OUTLINE} strokeWidth={OUTLINE_WIDTH} />
       {/* 寝ぐせ */}
       <Path
-        d="M34 40 Q31 33 36 30 Q33 25 38 23"
+        d="M34 38 Q30 31 36 28 Q32 23 38 21"
         stroke={EAR_FILL}
         strokeWidth={3}
         strokeLinecap="round"
         fill="none"
       />
-      <Path d="M30 52 Q33 49 36 52" stroke={LINE_COLOR} strokeWidth={1.8} strokeLinecap="round" fill="none" />
-      <Circle cx={44} cy={53} r={2} fill={LINE_COLOR} />
-      <Ellipse cx={49} cy={58} rx={2.4} ry={1.6} fill={LINE_COLOR} />
+      {/* 片目はつむり、片目だけ開けた、ぐうたらの顔 */}
+      <Path d="M27 52 Q30.5 55 34 52" stroke={LINE_COLOR} strokeWidth={1.8} strokeLinecap="round" fill="none" />
+      {openEye(41.5, 52.5)}
+      <Ellipse cx={48} cy={60} rx={6.5} ry={4.8} fill="#FCEFD8" />
+      <Ellipse cx={48} cy={58.6} rx={2.6} ry={1.9} fill={LINE_COLOR} />
       {/* ぺろっと出た舌、笑みとして描く */}
-      <Path d="M46 61 Q49 66 52 61" stroke="#E98787" strokeWidth={3} strokeLinecap="round" fill="none" />
+      <Path d="M45 62.5 Q48 67.5 51 62.5" stroke={TONGUE_FILL} strokeWidth={3} strokeLinecap="round" fill="none" />
       {/* 散らかったおもちゃ(骨型) */}
       <Path
-        d="M68 82 h10 M68 82 a2 2 0 1 0 0.01 0 M78 82 a2 2 0 1 0 0.01 0"
+        d="M70 88 h9 M70 88 a2.2 2.2 0 1 0 0.01 0 M79 88 a2.2 2.2 0 1 0 0.01 0"
         stroke="#CFCFCF"
         strokeWidth={3}
         strokeLinecap="round"
@@ -190,14 +337,14 @@ export function renderGestureDecorations(gestures: readonly SaborineGesture[]): 
   const has = (gesture: SaborineGesture) => gestures.includes(gesture);
   return (
     <G>
-      {has("facesPartner") && <Circle cx={50} cy={12} r={1.6} fill="#F3AFAE" />}
+      {has("facesPartner") && <Circle cx={50} cy={12} r={1.8} fill={BLUSH_FILL} />}
       {has("callsName") && (
-        <Path d="M20 26 q4 -4 8 0 q-2 4 -8 0" fill="#FFE3B0" stroke={LINE_COLOR} strokeWidth={0.6} />
+        <Path d="M20 26 q4 -4 8 0 q-2 4 -8 0" fill="#FFE3B0" stroke={OUTLINE} strokeWidth={0.6} />
       )}
       {has("approaches") && (
         <G opacity={0.6}>
-          <Path d="M14 70 h6" stroke={LINE_COLOR} strokeWidth={1.4} strokeLinecap="round" />
-          <Path d="M12 76 h6" stroke={LINE_COLOR} strokeWidth={1.4} strokeLinecap="round" />
+          <Path d="M14 70 h6" stroke={OUTLINE} strokeWidth={1.4} strokeLinecap="round" />
+          <Path d="M12 76 h6" stroke={OUTLINE} strokeWidth={1.4} strokeLinecap="round" />
         </G>
       )}
       {has("specialGesture") && (
