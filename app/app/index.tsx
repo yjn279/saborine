@@ -202,6 +202,17 @@ export default function Home() {
         <Text style={styles.recordButtonText}>きろくする</Text>
       </Pressable>
 
+      {!homeState.isPaired ? (
+        <Pressable
+          style={styles.inviteLink}
+          onPress={() => router.push("/invite")}
+          accessibilityRole="button"
+          accessibilityLabel="サボリーヌの てがみを ひらく"
+        >
+          <Text style={styles.inviteLinkText}>サボリーヌの てがみ</Text>
+        </Pressable>
+      ) : null}
+
       {pushBannerVisible ? (
         <View style={styles.pushBanner}>
           <InAppBanner />
@@ -245,5 +256,13 @@ const styles = StyleSheet.create({
   },
   pushBanner: {
     alignItems: "center",
+  },
+  inviteLink: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  inviteLinkText: {
+    color: "#a08860",
+    fontSize: 13,
   },
 });
