@@ -49,7 +49,7 @@ describe("ホームの状態", () => {
     expect(myAffection.gestures).toEqual([]);
     // ひとりのうちは息ぴったりも何も起きていないため空。画面でも帯は出さない。
     expect(body.balanceGauge).toBe(0);
-    expect(body.partnerLatestChore).toBeNull();
+    expect(body.todayEvents).toEqual([]);
   });
 
   it("ひとりだけのアカウントでは、ペア成立が偽になる", async () => {
@@ -79,25 +79,55 @@ describe("ホームの状態", () => {
     expect(saborine.isSloppy).toBe(false);
   });
 
-  it("相手の直近の記録と、ありがとう済みかどうかを返す", async () => {
+  it("自分と相手の両方のきょうのできごとを、新しい順に返す", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerPair(db, "彩花", "大樹");
+    await recordChore(db, a, "お皿洗い");
+    await recordChore(db, b, "ゴミ出し");
+
+    const { body } = await getHome(db, a);
+    const todayEvents = body.todayEvents as Array<{ choreType: string; mine: boolean }>;
+    expect(todayEvents).toEqual([
+      { id: expect.any(String), choreType: "ゴミ出し", mine: false, thanked: false },
+      { id: expect.any(String), choreType: "お皿洗い", mine: true, thanked: false },
+    ]);
+  });
+
+  it("相手が3件記録し1件だけありがとうを送ると、真が1件・偽が2件になる", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerPair(db, "彩花", "大樹");
+    const log1 = await recordChore(db, a, "お皿洗い");
+    await recordChore(db, a, "洗濯");
+    await recordChore(db, a, "掃除");
+    await sendThanks(db, b, log1.id);
+
+    const { body } = await getHome(db, b);
+    const todayEvents = body.todayEvents as Array<{ mine: boolean; thanked: boolean }>;
+    const partnerEvents = todayEvents.filter((event) => !event.mine);
+    expect(partnerEvents).toHaveLength(3);
+    expect(partnerEvents.filter((event) => event.thanked)).toHaveLength(1);
+    expect(partnerEvents.filter((event) => !event.thanked)).toHaveLength(2);
+  });
+
+  it("きょうの相手の記録がすべてありがとう済みなら、セリフがthanksWaitingにならない", async () => {
     const db = await createTestDb();
     const { a, b } = await registerPair(db, "彩花", "大樹");
     const log = await recordChore(db, a, "お皿洗い");
-
-    const beforeThanks = await getHome(db, b);
-    const partnerChoreBefore = beforeThanks.body.partnerLatestChore as {
-      id: string;
-      choreType: string;
-      thanked: boolean;
-    };
-    expect(partnerChoreBefore.choreType).toBe("お皿洗い");
-    expect(partnerChoreBefore.thanked).toBe(false);
-
     await sendThanks(db, b, log.id);
 
-    const afterThanks = await getHome(db, b);
-    const partnerChoreAfter = afterThanks.body.partnerLatestChore as { thanked: boolean };
-    expect(partnerChoreAfter.thanked).toBe(true);
+    const { body } = await getHome(db, b);
+    const saborine = body.saborine as { serifKind: string };
+    expect(saborine.serifKind).not.toBe("thanksWaiting");
+  });
+
+  it("きょうの相手の記録にまだありがとうを送っていないものがあれば、セリフがthanksWaitingになる", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerPair(db, "彩花", "大樹");
+    await recordChore(db, a, "お皿洗い");
+
+    const { body } = await getHome(db, b);
+    const saborine = body.saborine as { serifKind: string };
+    expect(saborine.serifKind).toBe("thanksWaiting");
   });
 
   it("ありがとうが届くとゲージとなつき度が動く", async () => {
@@ -142,6 +172,17 @@ describe("ホームの状態", () => {
     expect(body).not.toHaveProperty("totalRecords");
     expect(text).not.toMatch(/"a"\s*:\s*\d/);
     expect(text).not.toMatch(/"b"\s*:\s*\d/);
+  });
+
+  it("きょうのできごとの1件は、記録のID・家事の名前・自分のものか・ありがとう済みかの4項目だけを持つ", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerPair(db, "彩花", "大樹");
+    await recordChore(db, a, "お皿洗い");
+
+    const { body } = await getHome(db, b);
+    const todayEvents = body.todayEvents as Array<Record<string, unknown>>;
+    expect(todayEvents).toHaveLength(1);
+    expect(Object.keys(todayEvents[0]!).sort()).toEqual(["choreType", "id", "mine", "thanked"]);
   });
 
   it("セリフに命令・催促・期限を示す表現が含まれない", async () => {
