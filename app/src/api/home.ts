@@ -29,12 +29,6 @@ export interface HomeState {
     value: number;
     gestures: SaborineGesture[];
   };
-  partnerLatestChore: {
-    id: string;
-    choreType: string;
-    createdAt: string;
-    thanked: boolean;
-  } | null;
   // 新しい順、最大6件。自分の記録と相手の記録の両方を含む。
   todayEvents: TodayEvent[];
 }

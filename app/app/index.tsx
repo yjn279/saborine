@@ -19,6 +19,7 @@ import type { SaborineGesture } from "../src/components/saborine/types";
 import { useTimeoutRef } from "../src/hooks/useTimeoutRef";
 import { decideInvitePrompt } from "../src/invite/prompt";
 import { getFirstRecordedAt, getInvitePromptStage, setInvitePromptStage } from "../src/invite/promptStorage";
+import { decideTodayEventView } from "../src/home/todayEvents";
 import { createPushRestorer, shouldShowPushBanner } from "../src/push/restore";
 import { hasPushSubscription, isPushSupported, subscribeToPush } from "../src/push/subscribe";
 import { REACTION_DURATION_MS } from "../src/reactionDuration";
@@ -29,13 +30,15 @@ import { colors, fontSize, space } from "../src/styles/theme";
 const POLL_INTERVAL_MS = 20_000;
 
 // 生活の中心となるホーム画面。サボリーヌ・息ぴったりゲージ・記録ボタン・
-// 相手の直近の記録とありがとうボタンだけを置き、数値・回数・順位は一切出さない。
+// きょうふたりに起きたこととありがとうボタンだけを置き、数値・回数・順位は一切出さない。
 export default function Home() {
   const router = useRouter();
   const identity = useIdentity();
   const [homeState, setHomeState] = useState<HomeState | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [thanksSending, setThanksSending] = useState(false);
+  // ありがとうを送信中の記録IDの一覧。押した行だけを送信中の見た目にし、
+  // 他の行は巻き添えにしない(複数の行を同時に送っても構わない)。
+  const [sendingIds, setSendingIds] = useState<string[]>([]);
   const [eating, setEating] = useState(false);
   const [pushBannerVisible, setPushBannerVisible] = useState(false);
   const [gestureNotice, setGestureNotice] = useState<string | null>(null);
@@ -159,22 +162,21 @@ export default function Home() {
     }, [identity, refresh, promptInviteIfNeeded]),
   );
 
-  const handleThanks = async () => {
-    const chore = homeState?.partnerLatestChore;
-    if (!identity || !chore || chore.thanked || thanksSending) {
+  const handleThanks = async (choreLogId: string) => {
+    if (!identity || sendingIds.includes(choreLogId)) {
       return;
     }
-    setThanksSending(true);
+    setSendingIds((ids) => [...ids, choreLogId]);
     setErrorMessage(null);
     try {
-      await sendThanks(identity, chore.id);
+      await sendThanks(identity, choreLogId);
       setEating(true);
       eatingTimer.arm(() => setEating(false), REACTION_DURATION_MS);
       await refresh(identity);
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "ありがとうを おくれませんでした");
     } finally {
-      setThanksSending(false);
+      setSendingIds((ids) => ids.filter((id) => id !== choreLogId));
     }
   };
 
@@ -218,14 +220,23 @@ export default function Home() {
         {homeState.isPaired ? <BalanceGauge value={homeState.balanceGauge} /> : null}
       </View>
 
-      {homeState.partnerLatestChore ? (
+      {homeState.todayEvents.length > 0 ? (
         <View style={commonStyles.card}>
-          <Text style={styles.partnerText}>{homeState.partnerLatestChore.choreType}を してくれたよ</Text>
-          <ThanksButton
-            thanked={homeState.partnerLatestChore.thanked}
-            sending={thanksSending}
-            onPress={handleThanks}
-          />
+          {homeState.todayEvents.map((event) => {
+            const view = decideTodayEventView(event);
+            return (
+              <View key={event.id} style={styles.eventRow}>
+                <Text style={styles.partnerText}>{view.text}</Text>
+                {view.showThanksButton ? (
+                  <ThanksButton
+                    thanked={view.thanked}
+                    sending={sendingIds.includes(event.id)}
+                    onPress={() => handleThanks(event.id)}
+                  />
+                ) : null}
+              </View>
+            );
+          })}
         </View>
       ) : (
         <Text style={styles.partnerEmpty}>まだ とどいてないみたい</Text>
@@ -280,6 +291,15 @@ const styles = StyleSheet.create({
   partnerText: {
     fontSize: fontSize.serif,
     color: colors.text,
+  },
+  // きょうのできごと1件ぶんの行。文とありがとうボタンを横に並べ、
+  // 6件並んでも縦に伸びすぎないようにする。
+  eventRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.md,
+    width: "100%",
   },
   partnerEmpty: {
     fontSize: fontSize.caption,

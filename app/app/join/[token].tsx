@@ -6,6 +6,7 @@ import { fetchHomeState, sendThanks, type HomeState } from "../../src/api/home";
 import { acceptInvite, fetchInvitePreview, type InvitePreview } from "../../src/api/invite";
 import { loadIdentity, type Identity } from "../../src/auth/identity";
 import { registerIdentity, retrySaveIdentity, type IdentityRegistrationResult } from "../../src/auth/register";
+import { decideTodayEventView } from "../../src/home/todayEvents";
 import { LetterCard } from "../../src/components/LetterCard";
 import { Saborine } from "../../src/components/saborine/Saborine";
 import { ThanksButton } from "../../src/components/ThanksButton";
@@ -136,14 +137,17 @@ export default function Join() {
     await applyJoinResult(await retrySaveIdentity(pendingIdentity));
   };
 
+  // きょうの相手の記録のうち、いちばん新しい1件(新しい順に並ぶtodayEventsの先頭)。
+  const partnerEvent = homeState?.todayEvents.find((event) => !event.mine) ?? null;
+  const partnerEventView = partnerEvent ? decideTodayEventView(partnerEvent) : null;
+
   const handleThanks = async () => {
-    const chore = homeState?.partnerLatestChore;
-    if (!joinedIdentity || !chore || chore.thanked || thanksSending) {
+    if (!joinedIdentity || !partnerEvent || partnerEventView?.thanked || thanksSending) {
       return;
     }
     setThanksSending(true);
     try {
-      await sendThanks(joinedIdentity, chore.id);
+      await sendThanks(joinedIdentity, partnerEvent.id);
       const state = await fetchHomeState(joinedIdentity);
       setHomeState(state);
     } catch (error) {
@@ -161,13 +165,11 @@ export default function Join() {
         <Text style={commonStyles.screenTitle}>ようこそ、{trimmedName}さん</Text>
         <Text style={commonStyles.screenSubtitle}>サボリーヌの もうひとりの さとおやに なったよ</Text>
 
-        {homeState?.partnerLatestChore ? (
+        {partnerEvent && partnerEventView ? (
           <View style={styles.partnerCard}>
-            <Text style={styles.partnerText}>
-              {homeState.partnerLatestChore.choreType}を してくれたよ
-            </Text>
+            <Text style={styles.partnerText}>{partnerEventView.text}</Text>
             <ThanksButton
-              thanked={homeState.partnerLatestChore.thanked}
+              thanked={partnerEventView.thanked}
               sending={thanksSending}
               onPress={handleThanks}
             />
