@@ -22,6 +22,12 @@ export interface EvolutionResult {
 
 const EVOLUTION_THRESHOLD = 20;
 
+// いまの育ち具合 = 当月の成長ポイント ÷ 進化に必要なポイント。0〜1の割合にして返す。
+// マイナスの入力(防御)は0に、しきい値を超える入力は1に丸める。
+export function calcGrowthProgress(monthlyGrowthPoints: number): number {
+  return Math.min(Math.max(monthlyGrowthPoints, 0) / EVOLUTION_THRESHOLD, 1);
+}
+
 export function decideEvolution(input: EvolutionInput): EvolutionResult {
   if (input.monthlyGrowthPoints < EVOLUTION_THRESHOLD) {
     return { evolves: false, lineage: null };

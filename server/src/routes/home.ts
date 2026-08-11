@@ -3,6 +3,7 @@ import type { AppEnv } from "../app.js";
 import { authMiddleware } from "../auth.js";
 import { formatStoredTimestamp, parseStoredTimestamp } from "../db.js";
 import { calcBalanceGauge } from "../domain/gauge.js";
+import { calcGrowthProgress } from "../domain/evolution.js";
 import { unlockedGestures } from "../domain/affection.js";
 import { isSloppyMode } from "../domain/mood.js";
 import { pickLine } from "../domain/lines.js";
@@ -22,7 +23,7 @@ export function createHomeRoutes() {
 
     const [characterResult, affectionResult, partnerResult, chorePairResult] = await Promise.all([
       db.execute({
-        sql: "SELECT name, evolution_stage, evolution_lineage, created_at FROM characters WHERE pair_id = ?",
+        sql: "SELECT name, evolution_stage, evolution_lineage, total_growth_points, created_at FROM characters WHERE pair_id = ?",
         args: [user.pairId],
       }),
       db.execute({
@@ -138,6 +139,7 @@ export function createHomeRoutes() {
         evolutionLineage: character?.evolution_lineage ? String(character.evolution_lineage) : null,
         serif: line.text,
         serifKind: line.kind,
+        growthProgress: calcGrowthProgress(Number(character?.total_growth_points ?? 0)),
       },
       balanceGauge,
       myAffection: {
