@@ -120,6 +120,9 @@ export function createHomeRoutes() {
       .reverse();
     const todayEvents = selectTodayEvents(choreLogRecords, user.id, now);
 
+    // parsedChoreRowsは古い順なので、先頭がふたりのいちばん古い記録。1件も無ければnull。
+    const firstRecordedAt = parsedChoreRows[0]?.createdAt.toISOString() ?? null;
+
     const hasRecordedRecently =
       myLastRecordAt !== null && now.getTime() - myLastRecordAt.getTime() < RECENT_RECORD_WINDOW_MS;
     const line = pickLine({
@@ -132,6 +135,7 @@ export function createHomeRoutes() {
 
     return c.json({
       isPaired: partner !== undefined,
+      firstRecordedAt,
       saborine: {
         name: character ? String(character.name) : null,
         isSloppy,
