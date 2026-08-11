@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGrowthNoticeMessage, decideGrowthNotice, isGrowthCycleReset } from "../src/saborine/growthNotice";
+import { buildGrowthNoticeMessage, decideGrowthNotice } from "../src/saborine/growthNotice";
 
 describe("育ち具合の知らせを出すべきかの判断(decideGrowthNotice)", () => {
   it("前に見た値より上がっていれば、知らせる", () => {
@@ -24,32 +24,6 @@ describe("育ち具合の知らせを出すべきかの判断(decideGrowthNotice
     const decision = decideGrowthNotice({ current: 0.4, previouslySeen: null });
 
     expect(decision).toBe(false);
-  });
-});
-
-describe("進化して周期が測り直されたかの判断(isGrowthCycleReset)", () => {
-  it("前に見た値より下がっているときは、周期が測り直されたと判断する", () => {
-    const reset = isGrowthCycleReset({ current: 0, previouslySeen: 0.95 });
-
-    expect(reset).toBe(true);
-  });
-
-  it("前に見た値より上がっているときは、測り直されていないと判断する", () => {
-    const reset = isGrowthCycleReset({ current: 0.6, previouslySeen: 0.4 });
-
-    expect(reset).toBe(false);
-  });
-
-  it("前に見た値と同じときは、測り直されていないと判断する", () => {
-    const reset = isGrowthCycleReset({ current: 0.4, previouslySeen: 0.4 });
-
-    expect(reset).toBe(false);
-  });
-
-  it("前に見た記録が端末に無いときは、測り直されていないと判断する", () => {
-    const reset = isGrowthCycleReset({ current: 0.4, previouslySeen: null });
-
-    expect(reset).toBe(false);
   });
 });
 

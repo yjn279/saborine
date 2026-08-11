@@ -17,17 +17,6 @@ export function decideGrowthNotice(input: GrowthNoticeInput): boolean {
   return input.current > input.previouslySeen;
 }
 
-// 育ち具合は進化のたびに0へ測り直される(server/src/scheduled.ts)ため、前に見た値より
-// 下がっているときは前の周期が終わって新しい周期が始まったしるしであり、知らせずに
-// 前に見た値だけをいまの値に合わせ直す。合わせ直さないと、次の周期でどれだけ育っても
-// 前の周期の値を超えられず、知らせが二度と出せなくなる。
-export function isGrowthCycleReset(input: GrowthNoticeInput): boolean {
-  if (input.previouslySeen === null) {
-    return false;
-  }
-  return input.current < input.previouslySeen;
-}
-
 // 知らせの文面。誰の働きかには触れず、いま育ったことだけを短く伝える。
 export function buildGrowthNoticeMessage(): string {
   return "ふたりのおかげで、サボリーヌが少し育ったよ";
