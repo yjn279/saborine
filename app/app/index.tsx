@@ -206,6 +206,7 @@ export default function Home() {
             unlockedGestures={homeState.myAffection.gestures}
             evolutionStage={homeState.saborine.evolutionStage}
             evolutionLineage={homeState.saborine.evolutionLineage}
+            growthProgress={homeState.saborine.growthProgress}
           />
         </NudgeBounce>
       </Pressable>

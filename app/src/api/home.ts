@@ -22,6 +22,8 @@ export interface HomeState {
     serif: string;
     // だらしな・ありがとう待ち・促し・ふだんの4種類のみ(server/src/domain/lines.ts の LineKind と同じ言葉)。
     serifKind: "sloppy" | "thanksWaiting" | "nudge" | "default";
+    // いまの育ち具合(0〜1)。ポイント数そのものは含まない
+    growthProgress: number;
   };
   // 0〜1の割合のみ。回数は含まれない(docs/mvp.md:142)。
   balanceGauge: number;
