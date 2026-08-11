@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideEvolution } from "../../src/domain/evolution.js";
+import { calcGrowthProgress, decideEvolution } from "../../src/domain/evolution.js";
 
 describe("進化", () => {
   it("当月の成長ポイントが20未満なら進化せず、翌月へ持ち越す", () => {
@@ -55,5 +55,27 @@ describe("進化", () => {
       daysInMonth: 30,
     });
     expect(result).toEqual({ evolves: true, lineage: "harmony" });
+  });
+});
+
+describe("いまの育ち具合", () => {
+  it("ポイント0で割合が0になる", () => {
+    expect(calcGrowthProgress(0)).toBe(0);
+  });
+
+  it("ポイント10で割合が0.5になる", () => {
+    expect(calcGrowthProgress(10)).toBe(0.5);
+  });
+
+  it("ポイント20で割合が1になる", () => {
+    expect(calcGrowthProgress(20)).toBe(1);
+  });
+
+  it("しきい値を超えたポイント40でも割合が1を超えない", () => {
+    expect(calcGrowthProgress(40)).toBe(1);
+  });
+
+  it("ポイントが負のとき(防御)でも割合が0未満にならない", () => {
+    expect(calcGrowthProgress(-5)).toBe(0);
   });
 });

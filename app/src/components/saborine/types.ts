@@ -18,6 +18,8 @@ export interface SaborineProps {
   evolutionStage?: number;
   // 進化の系統。未進化はnull
   evolutionLineage?: SaborineLineage | null;
+  // いまの育ち具合(0〜1)。指定しなければ0として扱い、段階の大きさだけで描く
+  growthProgress?: number;
   // 一辺の描画サイズ(論理ピクセル)
   size?: number;
 }

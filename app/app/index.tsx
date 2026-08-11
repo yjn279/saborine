@@ -8,6 +8,8 @@ import { useIdentity } from "../src/auth/useIdentity";
 import type { Identity } from "../src/auth/identity";
 import { buildGestureNoticeMessage, decideGestureNotice } from "../src/affection/gestureNotice";
 import { getSeenGestures, setSeenGestures } from "../src/affection/gestureStorage";
+import { buildGrowthNoticeMessage, decideGrowthNotice } from "../src/saborine/growthNotice";
+import { getSeenGrowthProgress, setSeenGrowthProgress } from "../src/saborine/growthStorage";
 import { AffectionNote } from "../src/components/AffectionNote";
 import { BalanceGauge } from "../src/components/BalanceGauge";
 import { CloseButton } from "../src/components/CloseButton";
@@ -41,17 +43,20 @@ export default function Home() {
   const [sendingIds, setSendingIds] = useState<string[]>([]);
   const [eating, setEating] = useState(false);
   const [pushBannerVisible, setPushBannerVisible] = useState(false);
-  const [gestureNotice, setGestureNotice] = useState<string | null>(null);
+  // サボリーヌまわりの知らせは、仕草の解放と育ちの2種類あるが、同時に2つ並べない
+  // ため状態変数は1つだけに絞る。
+  const [notice, setNotice] = useState<string | null>(null);
   const eatingTimer = useTimeoutRef();
-  const gestureNoticeTimer = useTimeoutRef();
+  const noticeTimer = useTimeoutRef();
   const pushRestoreStarted = useRef(false);
   const autoInvitePromptShown = useRef(false);
   const isFocusedRef = useRef(false);
-  // 前回確認した解放済み仕草の一覧を端末に読みに行くのは起動後の最初の1回だけにし、
-  // 以後は取り直しのたびにこのメモリ上の値と比べる。20秒ごとの取り直しやありがとう
-  // 送信のたびに保存領域を読みに行かない(効率)ため、また読み出しと書き戻しの間に
-  // 別の取り直しが割り込んで判断が競合しない(整合性)ようにするため。
+  // 前回確認した解放済み仕草の一覧・育ち具合を端末に読みに行くのは起動後の最初の1回
+  // だけにし、以後は取り直しのたびにこのメモリ上の値と比べる。20秒ごとの取り直しや
+  // ありがとう送信のたびに保存領域を読みに行かない(効率)ため、また読み出しと書き戻し
+  // の間に別の取り直しが割り込んで判断が競合しない(整合性)ようにするため。
   const seenGesturesRef = useRef<readonly SaborineGesture[] | null | undefined>(undefined);
+  const seenGrowthProgressRef = useRef<number | null | undefined>(undefined);
 
   // 身分証が読めた時点で、お知らせの購読を作り直すべきか1回だけ判断する。ホームに
   // 戻るたびや20秒ごとの取り直しでは呼ばない。対応していない環境と分かったときだけ
@@ -79,25 +84,49 @@ export default function Home() {
       });
   }, [identity]);
 
-  // 状態を取り直すたびに、新しい仕草が解放されていないかを判断する。知らせを出したとき、
-  // および前回確認した一覧がまだ端末に無いときは、いまの一覧を端末に残して次回に備える。
-  const checkGestureNotice = useCallback(async (gestures: HomeState["myAffection"]["gestures"]) => {
-    if (seenGesturesRef.current === undefined) {
-      seenGesturesRef.current = await getSeenGestures();
-    }
-    const seen = seenGesturesRef.current;
-    const decision = decideGestureNotice({ current: gestures, previouslySeen: seen });
-    if (decision) {
-      setGestureNotice(buildGestureNoticeMessage(decision));
-      gestureNoticeTimer.arm(() => setGestureNotice(null), REACTION_DURATION_MS);
-    }
-    if (seen === null || decision) {
-      seenGesturesRef.current = gestures;
-      setSeenGestures(gestures).catch((error: unknown) => {
-        console.error("解放済みの仕草を残せませんでした", error);
-      });
-    }
-  }, []);
+  // 状態を取り直すたびに、新しい仕草の解放と育ちの前進のどちらを知らせるべきかを判断する。
+  // 両方成立していても仕草の解放を優先し、育ちの知らせと2つ並べない。知らせを出したとき、
+  // 前回確認した値がまだ端末に無いとき、および育ち具合が前回確認した値と変わっている
+  // (進化して周期が測り直されたときを含む)ときは、いまの値を端末に残して次回に備える
+  // (仕草の解放を知らせたときも、育ちの知らせが後から遅れて出ないよう育ち具合は残す)。
+  const checkNotices = useCallback(
+    async (gestures: HomeState["myAffection"]["gestures"], growthProgress: number) => {
+      const [seenGestures, seenGrowthProgress] = await Promise.all([
+        seenGesturesRef.current === undefined ? getSeenGestures() : seenGesturesRef.current,
+        seenGrowthProgressRef.current === undefined ? getSeenGrowthProgress() : seenGrowthProgressRef.current,
+      ]);
+      seenGesturesRef.current = seenGestures;
+      seenGrowthProgressRef.current = seenGrowthProgress;
+
+      const gestureDecision = decideGestureNotice({ current: gestures, previouslySeen: seenGestures });
+      const growthDecision =
+        !gestureDecision && decideGrowthNotice({ current: growthProgress, previouslySeen: seenGrowthProgress });
+
+      const message = gestureDecision
+        ? buildGestureNoticeMessage(gestureDecision)
+        : growthDecision
+          ? buildGrowthNoticeMessage()
+          : null;
+      if (message) {
+        setNotice(message);
+        noticeTimer.arm(() => setNotice(null), REACTION_DURATION_MS);
+      }
+
+      if (seenGestures === null || gestureDecision) {
+        seenGesturesRef.current = gestures;
+        setSeenGestures(gestures).catch((error: unknown) => {
+          console.error("解放済みの仕草を残せませんでした", error);
+        });
+      }
+      if (seenGrowthProgress === null || gestureDecision || growthProgress !== seenGrowthProgress) {
+        seenGrowthProgressRef.current = growthProgress;
+        setSeenGrowthProgress(growthProgress).catch((error: unknown) => {
+          console.error("育ち具合を残せませんでした", error);
+        });
+      }
+    },
+    [],
+  );
 
   const refresh = useCallback(
     async (currentIdentity: Identity): Promise<HomeState | null> => {
@@ -105,14 +134,14 @@ export default function Home() {
         const state = await fetchHomeState(currentIdentity);
         setHomeState(state);
         setErrorMessage(null);
-        await checkGestureNotice(state.myAffection.gestures);
+        await checkNotices(state.myAffection.gestures, state.saborine.growthProgress);
         return state;
       } catch (error) {
         setErrorMessage(error instanceof ApiError ? error.message : "サボリーヌの ようすが とれませんでした");
         return null;
       }
     },
-    [checkGestureNotice],
+    [checkNotices],
   );
 
   // 手紙の自動提示を判断する。1回のアプリ起動につき最大1回だけ判断し、出すと決まった
@@ -206,6 +235,7 @@ export default function Home() {
             unlockedGestures={homeState.myAffection.gestures}
             evolutionStage={homeState.saborine.evolutionStage}
             evolutionLineage={homeState.saborine.evolutionLineage}
+            growthProgress={homeState.saborine.growthProgress}
           />
         </NudgeBounce>
       </Pressable>
@@ -215,7 +245,7 @@ export default function Home() {
           相手のできごとや操作と混ざらないようにする。 */}
       <View style={styles.saborineState}>
         <AffectionNote gestures={homeState.myAffection.gestures} />
-        {gestureNotice ? <Text style={styles.gestureNotice}>{gestureNotice}</Text> : null}
+        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
         {/* 息ぴったりはふたりの間に生まれるもの。相手がいないうちは出さない。
             空の帯を置いても、埋める相手がいないため意味を持たない。 */}
         {homeState.isPaired ? <BalanceGauge value={homeState.balanceGauge} /> : null}
@@ -287,7 +317,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space.sm,
   },
-  gestureNotice: {
+  notice: {
     fontSize: fontSize.caption,
     color: colors.highlight,
     textAlign: "center",

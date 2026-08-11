@@ -238,4 +238,46 @@ describe("ホームの状態", () => {
     expect(saborine).not.toHaveProperty("shouldBounce");
     expect(saborine).not.toHaveProperty("animate");
   });
+
+  it("いまの育ち具合が0以上1以下の数値で返る", async () => {
+    const db = await createTestDb();
+    const { a } = await registerPair(db, "彩花", "大樹");
+    await recordChore(db, a, "掃除");
+
+    const { body } = await getHome(db, a);
+    const saborine = body.saborine as { growthProgress: number };
+    expect(typeof saborine.growthProgress).toBe("number");
+    expect(saborine.growthProgress).toBeGreaterThanOrEqual(0);
+    expect(saborine.growthProgress).toBeLessThanOrEqual(1);
+  });
+
+  it("キャラクターの行がまだ無いときも、育ち具合が0で応答が壊れない", async () => {
+    const db = await createTestDb();
+    const { a } = await registerPair(db, "彩花", "大樹");
+    await db.execute({ sql: "DELETE FROM characters WHERE pair_id = ?", args: [a.pairId] });
+
+    const { res, body } = await getHome(db, a);
+    expect(res.status).toBe(200);
+    const saborine = body.saborine as { growthProgress: number };
+    expect(saborine.growthProgress).toBe(0);
+  });
+
+  it("saborineが持つキーは、名前・だらしな・進化の段階・系統・セリフ・育ち具合のちょうど7つだけ", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+
+    const { body } = await getHome(db, account);
+    const saborine = body.saborine as Record<string, unknown>;
+    expect(Object.keys(saborine).sort()).toEqual(
+      [
+        "evolutionLineage",
+        "evolutionStage",
+        "growthProgress",
+        "isSloppy",
+        "name",
+        "serif",
+        "serifKind",
+      ].sort(),
+    );
+  });
 });
