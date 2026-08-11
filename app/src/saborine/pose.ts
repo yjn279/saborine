@@ -4,10 +4,8 @@
 import type { HomeState } from "../api/home";
 import type { SaborinePose } from "../components/saborine/types";
 
-export type SerifKind = HomeState["saborine"]["serifKind"];
-
 export interface DecidePoseInput {
-  serifKind: SerifKind;
+  serifKind: HomeState["saborine"]["serifKind"];
   // ありがとうを送った直後かどうか
   isEating: boolean;
 }

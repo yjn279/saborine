@@ -6,6 +6,7 @@ import { fetchChorePresets, recordChore } from "../src/api/home";
 import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
 import { Saborine } from "../src/components/saborine/Saborine";
+import { useTimeoutRef } from "../src/hooks/useTimeoutRef";
 import { markFirstRecordedAt } from "../src/invite/promptStorage";
 import { REACTION_DURATION_MS } from "../src/reactionDuration";
 import { buildRecordReactionMessage } from "../src/record/reaction";
@@ -28,15 +29,8 @@ export default function Record() {
   const [recordingChoreType, setRecordingChoreType] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [reactionMessage, setReactionMessage] = useState<string | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (closeTimer.current) {
-        clearTimeout(closeTimer.current);
-      }
-    };
-  }, []);
+  const closeTimer = useTimeoutRef();
+  const closedRef = useRef(false);
 
   useEffect(() => {
     if (!identity) {
@@ -77,13 +71,20 @@ export default function Record() {
       console.error("初めての記録の日時を残せませんでした", error);
     });
     setReactionMessage(buildRecordReactionMessage({ choreType: trimmed, wasSloppy }));
-    closeTimer.current = setTimeout(() => router.back(), REACTION_DURATION_MS);
+    closeTimer.arm(() => {
+      closedRef.current = true;
+      router.back();
+    }, REACTION_DURATION_MS);
   };
 
+  // 自動で閉じるタイマーとタップの両方から呼ばれうるが、router.back()は一度しか
+  // 実行してはいけない(二重に呼ぶと余分に一つ前の画面まで戻ってしまう)。
   const closeNow = () => {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
+    if (closedRef.current) {
+      return;
     }
+    closedRef.current = true;
+    closeTimer.clear();
     router.back();
   };
 

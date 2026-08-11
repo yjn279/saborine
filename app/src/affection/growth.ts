@@ -3,14 +3,7 @@
 // 累計値・残り回数・順位は一切扱わない。
 
 import type { SaborineGesture } from "../components/saborine/types";
-
-// 仕草ごとの言葉。docs/mvp.md の解放順(こちらを向く→名前を呼ぶ→近寄ってくる→特別な仕草)と揃える。
-const GESTURE_MESSAGES: Record<SaborineGesture, string> = {
-  facesPartner: "さいきん、きみの ほうを むいてくれるようになった",
-  callsName: "さいきん、なまえを よんでくれるようになった",
-  approaches: "さいきん、ちかくに よってきてくれるようになった",
-  specialGesture: "さいきん、とくべつな しぐさを みせてくれるようになった",
-};
+import { GESTURE_ACTIONS } from "./gestureMessages";
 
 const NO_GESTURE_MESSAGE = "すこしずつ、なついてきているみたい";
 
@@ -21,5 +14,5 @@ export function buildAffectionGrowthNote(gestures: readonly SaborineGesture[]): 
     return NO_GESTURE_MESSAGE;
   }
   const latest = gestures[gestures.length - 1];
-  return GESTURE_MESSAGES[latest];
+  return `さいきん、${GESTURE_ACTIONS[latest]}ようになった`;
 }

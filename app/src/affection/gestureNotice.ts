@@ -3,6 +3,7 @@
 // と、いまの一覧を比べるだけで、どの仕草を知らせるかを決める。
 
 import type { SaborineGesture } from "../components/saborine/types";
+import { GESTURE_ACTIONS } from "./gestureMessages";
 
 export interface GestureNoticeInput {
   // /api/home がいま返している、解放済みの仕草の一覧(古い順)
@@ -26,14 +27,7 @@ export function decideGestureNotice(input: GestureNoticeInput): SaborineGesture 
   return newlyUnlocked[newlyUnlocked.length - 1];
 }
 
-// 仕草ごとの知らせの文面。回数・残り・順位は扱わず、いま何が起きたかだけを短く伝える。
-const GESTURE_NOTICE_MESSAGES: Record<SaborineGesture, string> = {
-  facesPartner: "サボリーヌが、きみの ほうを むいてくれるようになったよ",
-  callsName: "サボリーヌが、なまえを よんでくれるようになったよ",
-  approaches: "サボリーヌが、ちかくに よってきてくれるようになったよ",
-  specialGesture: "サボリーヌが、とくべつな しぐさを みせてくれるようになったよ",
-};
-
+// 知らせの文面。回数・残り・順位は扱わず、いま何が起きたかだけを短く伝える。
 export function buildGestureNoticeMessage(gesture: SaborineGesture): string {
-  return GESTURE_NOTICE_MESSAGES[gesture];
+  return `サボリーヌが、${GESTURE_ACTIONS[gesture]}ようになったよ`;
 }

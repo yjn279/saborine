@@ -15,6 +15,8 @@ import { InAppBanner } from "../src/components/InAppBanner";
 import { ThanksButton } from "../src/components/ThanksButton";
 import { NudgeBounce } from "../src/components/saborine/NudgeBounce";
 import { Saborine } from "../src/components/saborine/Saborine";
+import type { SaborineGesture } from "../src/components/saborine/types";
+import { useTimeoutRef } from "../src/hooks/useTimeoutRef";
 import { decideInvitePrompt } from "../src/invite/prompt";
 import { getFirstRecordedAt, getInvitePromptStage, setInvitePromptStage } from "../src/invite/promptStorage";
 import { createPushRestorer, shouldShowPushBanner } from "../src/push/restore";
@@ -36,22 +38,16 @@ export default function Home() {
   const [eating, setEating] = useState(false);
   const [pushBannerVisible, setPushBannerVisible] = useState(false);
   const [gestureNotice, setGestureNotice] = useState<string | null>(null);
-  const eatingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const gestureNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const eatingTimer = useTimeoutRef();
+  const gestureNoticeTimer = useTimeoutRef();
   const pushRestoreStarted = useRef(false);
   const autoInvitePromptShown = useRef(false);
   const isFocusedRef = useRef(false);
-
-  useEffect(() => {
-    return () => {
-      if (eatingTimer.current) {
-        clearTimeout(eatingTimer.current);
-      }
-      if (gestureNoticeTimer.current) {
-        clearTimeout(gestureNoticeTimer.current);
-      }
-    };
-  }, []);
+  // 前回確認した解放済み仕草の一覧を端末に読みに行くのは起動後の最初の1回だけにし、
+  // 以後は取り直しのたびにこのメモリ上の値と比べる。20秒ごとの取り直しやありがとう
+  // 送信のたびに保存領域を読みに行かない(効率)ため、また読み出しと書き戻しの間に
+  // 別の取り直しが割り込んで判断が競合しない(整合性)ようにするため。
+  const seenGesturesRef = useRef<readonly SaborineGesture[] | null | undefined>(undefined);
 
   // 身分証が読めた時点で、お知らせの購読を作り直すべきか1回だけ判断する。ホームに
   // 戻るたびや20秒ごとの取り直しでは呼ばない。対応していない環境と分かったときだけ
@@ -82,17 +78,20 @@ export default function Home() {
   // 状態を取り直すたびに、新しい仕草が解放されていないかを判断する。知らせを出したとき、
   // および前回確認した一覧がまだ端末に無いときは、いまの一覧を端末に残して次回に備える。
   const checkGestureNotice = useCallback(async (gestures: HomeState["myAffection"]["gestures"]) => {
-    const seen = await getSeenGestures();
+    if (seenGesturesRef.current === undefined) {
+      seenGesturesRef.current = await getSeenGestures();
+    }
+    const seen = seenGesturesRef.current;
     const decision = decideGestureNotice({ current: gestures, previouslySeen: seen });
     if (decision) {
       setGestureNotice(buildGestureNoticeMessage(decision));
-      if (gestureNoticeTimer.current) {
-        clearTimeout(gestureNoticeTimer.current);
-      }
-      gestureNoticeTimer.current = setTimeout(() => setGestureNotice(null), REACTION_DURATION_MS);
+      gestureNoticeTimer.arm(() => setGestureNotice(null), REACTION_DURATION_MS);
     }
     if (seen === null || decision) {
-      await setSeenGestures(gestures);
+      seenGesturesRef.current = gestures;
+      setSeenGestures(gestures).catch((error: unknown) => {
+        console.error("解放済みの仕草を残せませんでした", error);
+      });
     }
   }, []);
 
@@ -169,7 +168,7 @@ export default function Home() {
     try {
       await sendThanks(identity, chore.id);
       setEating(true);
-      eatingTimer.current = setTimeout(() => setEating(false), REACTION_DURATION_MS);
+      eatingTimer.arm(() => setEating(false), REACTION_DURATION_MS);
       await refresh(identity);
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "ありがとうを おくれませんでした");
@@ -187,11 +186,12 @@ export default function Home() {
   }
 
   const pose = decidePose({ serifKind: homeState.saborine.serifKind, isEating: eating });
+  const recordHref = `/record?isSloppy=${homeState.saborine.isSloppy ? "1" : "0"}`;
 
   return (
     <View style={commonStyles.screenContainer}>
       <Pressable
-        onPress={() => router.push(`/record?isSloppy=${homeState.saborine.isSloppy ? "1" : "0"}`)}
+        onPress={() => router.push(recordHref)}
         accessibilityRole="button"
         accessibilityLabel="サボリーヌになにかしてくれた?ときく"
       >
@@ -226,10 +226,7 @@ export default function Home() {
 
       {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
 
-      <Pressable
-        style={styles.recordButton}
-        onPress={() => router.push(`/record?isSloppy=${homeState.saborine.isSloppy ? "1" : "0"}`)}
-      >
+      <Pressable style={styles.recordButton} onPress={() => router.push(recordHref)}>
         <Text style={styles.recordButtonText}>きろくする</Text>
       </Pressable>
 
