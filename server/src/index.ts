@@ -8,6 +8,8 @@ import type { VapidKeyPair } from "./push/vapid.js";
 const LOCAL_DB_URL = "http://127.0.0.1:8080";
 
 interface Env {
+  // 書き出し済みのアプリ。招待リンクを配るためだけに使う(下の JOIN_PAGE を参照)。
+  ASSETS: Fetcher;
   DB_URL?: string;
   DB_AUTH_TOKEN?: string;
   VAPID_PUBLIC_KEY?: string;
@@ -35,8 +37,19 @@ function optionalVapidConfig(env: Env): { vapidKeyPair: VapidKeyPair; subject: s
   }
 }
 
+// 招待リンクは /join/<合言葉> で届くが、書き出されるのは join/[token].html の1枚だけで、
+// 合言葉ごとのファイルは存在しない。そのままではパスが一致せず、招待された人が
+// 404を受け取り、ペアを作る唯一の道が塞がる。ここで1枚を代わりに返す。
+// 合言葉はアプリが画面上のURLから読むため、Worker側で中身を差し替える必要はない。
+const JOIN_PATH_PREFIX = "/join/";
+const JOIN_PAGE = "/join/[token].html";
+
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const { pathname, origin } = new URL(request.url);
+    if (pathname.startsWith(JOIN_PATH_PREFIX)) {
+      return env.ASSETS.fetch(new Request(`${origin}${JOIN_PAGE}`, request));
+    }
     const db = createDb({ url: env.DB_URL ?? LOCAL_DB_URL, authToken: env.DB_AUTH_TOKEN });
     return createApp(db, optionalVapidConfig(env)).fetch(request, env, ctx);
   },
