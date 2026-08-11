@@ -36,3 +36,8 @@ export function decideInvitePrompt(input: InvitePromptInput): InvitePromptDecisi
   const elapsedMs = input.now.getTime() - input.firstRecordedAt.getTime();
   return elapsedMs >= SECOND_PROMPT_DELAY_MS ? "second" : "none";
 }
+
+// サーバー(/api/home)が返す初めての記録の日時をDateに直す。1件も無ければnull。
+export function parseFirstRecordedAt(value: string | null): Date | null {
+  return value === null ? null : new Date(value);
+}
