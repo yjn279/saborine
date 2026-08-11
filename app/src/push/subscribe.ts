@@ -91,13 +91,24 @@ export async function subscribeToPush(identity: Identity): Promise<SubscribeResu
   }
 }
 
-// 購読を解除する。購読していない、または対応していない環境では何もしない。
-export async function unsubscribeFromPush(identity: Identity): Promise<void> {
+// この端末にある、お知らせの購読を探す。対応していない環境ではnullを返す。
+async function findExistingSubscription(): Promise<PushSubscription | null> {
   if (!isPushSupported()) {
-    return;
+    return null;
   }
   const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH);
   const subscription = await registration?.pushManager.getSubscription();
+  return subscription ?? null;
+}
+
+// この端末に、お知らせの購読がすでにあるか調べる。対応していない環境ではfalseを返す。
+export async function hasPushSubscription(): Promise<boolean> {
+  return (await findExistingSubscription()) != null;
+}
+
+// 購読を解除する。購読していない、または対応していない環境では何もしない。
+export async function unsubscribeFromPush(identity: Identity): Promise<void> {
+  const subscription = await findExistingSubscription();
   if (!subscription) {
     return;
   }
