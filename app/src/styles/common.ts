@@ -22,6 +22,23 @@ export const commonStyles = StyleSheet.create({
     maxWidth: 440,
     alignSelf: "center",
   },
+  // screenContainerと同じ見た目を、内容が画面の高さを超えたときだけ
+  // スクロールできる形にしたもの。内容が短いときはscreenContainer同様、
+  // 中央に静かに収まる。
+  scrollScreen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollScreenContent: {
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space.lg,
+    padding: space.xl,
+    width: "100%",
+    maxWidth: 440,
+    alignSelf: "center",
+  },
   screenTitle: {
     fontSize: fontSize.title,
     fontWeight: "600",

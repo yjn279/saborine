@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ApiError } from "../src/api/client";
 import { fetchHomeState, sendThanks, type HomeState } from "../src/api/home";
@@ -193,7 +193,7 @@ export default function Home() {
   const recordHref = `/record?isSloppy=${homeState.saborine.isSloppy ? "1" : "0"}`;
 
   return (
-    <View style={commonStyles.screenContainer}>
+    <ScrollView style={commonStyles.scrollScreen} contentContainerStyle={commonStyles.scrollScreenContent}>
       <Pressable
         onPress={() => router.push(recordHref)}
         accessibilityRole="button"
@@ -227,9 +227,12 @@ export default function Home() {
             const view = decideTodayEventView(event);
             return (
               <View key={event.id} style={styles.eventRow}>
-                <Text style={styles.partnerText}>{view.text}</Text>
+                <Text style={styles.partnerText} numberOfLines={1}>
+                  {view.text}
+                </Text>
                 {view.showThanksButton ? (
                   <ThanksButton
+                    size="compact"
                     thanked={view.thanked}
                     sending={sendingIds.includes(event.id)}
                     onPress={() => handleThanks(event.id)}
@@ -266,7 +269,7 @@ export default function Home() {
           <CloseButton onPress={() => setPushBannerVisible(false)} />
         </View>
       ) : null}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -292,13 +295,15 @@ const styles = StyleSheet.create({
   partnerText: {
     fontSize: fontSize.serif,
     color: colors.text,
+    // ありがとうの操作のぶんを差し引いた残り幅いっぱいに収め、1行に保つ。
+    flexGrow: 1,
+    flexShrink: 1,
   },
-  // きょうのできごと1件ぶんの行。文とありがとうボタンを横に並べ、
+  // きょうのできごと1件ぶんの行。文とありがとうの操作を横に並べ、
   // 6件並んでも縦に伸びすぎないようにする。
   eventRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     gap: space.md,
     width: "100%",
   },
