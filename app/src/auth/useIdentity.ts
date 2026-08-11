@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { addUnauthorizedHandler } from "../api/client";
+import { clearInvitePromptState } from "../invite/promptStorage";
+import { forgetIdentity } from "./forgetIdentity";
 import { clearIdentity, loadIdentity, type Identity } from "./identity";
 import { ONBOARDING_PATH, WELCOME_PATH } from "./routes";
 
@@ -42,10 +44,13 @@ export function useIdentity(): Identity | null {
   // 消し、穏やかな文言とともにはじめかた画面へ送り返して復帰できるようにする。
   // 一度登録した人なので、紹介ページ(/welcome)ではなく、はじめかた画面へ送る。
   // 画面が重ねてマウントされていても全画面ぶん登録するため、アンマウント時は
-  // 自分自身だけを取り除く。
+  // 自分自身だけを取り除く。招待の自動提示の進み具合も、この端末で次に登録する
+  // 相手に持ち越さないよう、身分証と一緒に消す(app/app/settings.tsxの解除・削除と同じ扱い)。
   useEffect(() => {
     return addUnauthorizedHandler(() => {
-      clearIdentity().finally(() => router.replace(`${ONBOARDING_PATH}?reason=unpaired`));
+      forgetIdentity({ clearIdentity, clearInvitePromptState }).finally(() =>
+        router.replace(`${ONBOARDING_PATH}?reason=unpaired`),
+      );
     });
   }, [router]);
 

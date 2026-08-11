@@ -17,6 +17,7 @@ import {
   updateSettings,
   type SettingsState,
 } from "../src/api/settings";
+import { forgetIdentity } from "../src/auth/forgetIdentity";
 import { clearIdentity } from "../src/auth/identity";
 import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
@@ -139,7 +140,7 @@ export default function Settings() {
     setActionError(null);
     try {
       await unpair(identity);
-      await Promise.all([clearIdentity(), clearInvitePromptState()]);
+      await forgetIdentity({ clearIdentity, clearInvitePromptState });
       router.replace("/onboarding");
     } catch (error) {
       setActionError(error instanceof ApiError ? error.message : "ペアかいじょに しっぱいしました");
@@ -155,7 +156,7 @@ export default function Settings() {
     setActionError(null);
     try {
       await deleteAccount(identity);
-      await Promise.all([clearIdentity(), clearInvitePromptState()]);
+      await forgetIdentity({ clearIdentity, clearInvitePromptState });
       router.replace("/onboarding");
     } catch (error) {
       setActionError(error instanceof ApiError ? error.message : "さくじょに しっぱいしました");
