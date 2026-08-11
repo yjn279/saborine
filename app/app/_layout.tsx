@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Stack, usePathname, useRouter } from "expo-router";
+import { colors } from "../src/styles/theme";
 import { loadIdentity } from "../src/auth/identity";
 import { isGuestOnlyPath, isPublicPath, JOIN_PATH_PREFIX, WELCOME_PATH } from "../src/auth/routes";
 
@@ -51,5 +52,13 @@ export default function RootLayout() {
     return null;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        // 列の外側(広い画面の左右)も同じ地の色にして、白い帯が出ないようにする。
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    />
+  );
 }

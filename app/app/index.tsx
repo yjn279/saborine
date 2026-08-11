@@ -24,6 +24,7 @@ import { hasPushSubscription, isPushSupported, subscribeToPush } from "../src/pu
 import { REACTION_DURATION_MS } from "../src/reactionDuration";
 import { decidePose } from "../src/saborine/pose";
 import { commonStyles } from "../src/styles/common";
+import { colors, fontSize, space } from "../src/styles/theme";
 
 const POLL_INTERVAL_MS = 20_000;
 
@@ -206,13 +207,16 @@ export default function Home() {
       </Pressable>
       <Text style={styles.serif}>{homeState.saborine.serif}</Text>
 
-      <AffectionNote gestures={homeState.myAffection.gestures} />
-      {gestureNotice ? <Text style={styles.gestureNotice}>{gestureNotice}</Text> : null}
-
-      <BalanceGauge value={homeState.balanceGauge} />
+      {/* サボリーヌの様子(ひとこと・なつき度・息ぴったり)をひとまとまりにして、
+          相手のできごとや操作と混ざらないようにする。 */}
+      <View style={styles.saborineState}>
+        <AffectionNote gestures={homeState.myAffection.gestures} />
+        {gestureNotice ? <Text style={styles.gestureNotice}>{gestureNotice}</Text> : null}
+        <BalanceGauge value={homeState.balanceGauge} />
+      </View>
 
       {homeState.partnerLatestChore ? (
-        <View style={styles.partnerCard}>
+        <View style={commonStyles.card}>
           <Text style={styles.partnerText}>{homeState.partnerLatestChore.choreType}を してくれたよ</Text>
           <ThanksButton
             thanked={homeState.partnerLatestChore.thanked}
@@ -226,8 +230,8 @@ export default function Home() {
 
       {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
 
-      <Pressable style={styles.recordButton} onPress={() => router.push(recordHref)}>
-        <Text style={styles.recordButtonText}>きろくする</Text>
+      <Pressable style={commonStyles.primaryButton} onPress={() => router.push(recordHref)}>
+        <Text style={commonStyles.primaryButtonText}>きろくする</Text>
       </Pressable>
 
       {!homeState.isPaired ? (
@@ -253,49 +257,38 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   serif: {
-    fontSize: 15,
-    color: "#6b5237",
+    fontSize: fontSize.serif,
+    color: colors.serif,
     textAlign: "center",
+    lineHeight: fontSize.serif * 1.6,
+  },
+  // サボリーヌの様子をひとまとまりにする。個々の間隔は狭く、外との間隔は広く。
+  saborineState: {
+    alignItems: "center",
+    gap: space.sm,
   },
   gestureNotice: {
-    fontSize: 13,
-    color: "#e07a5f",
+    fontSize: fontSize.caption,
+    color: colors.highlight,
     textAlign: "center",
   },
-  partnerCard: {
-    alignItems: "center",
-    gap: 10,
-  },
   partnerText: {
-    fontSize: 15,
-    color: "#333",
+    fontSize: fontSize.serif,
+    color: colors.text,
   },
   partnerEmpty: {
-    fontSize: 14,
-    color: "#999",
-  },
-  recordButton: {
-    backgroundColor: "#f4a261",
-    borderRadius: 24,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    minWidth: 200,
-    alignItems: "center",
-  },
-  recordButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: fontSize.caption,
+    color: colors.textFaint,
   },
   pushBanner: {
     alignItems: "center",
   },
   inviteLink: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
   },
   inviteLinkText: {
-    color: "#a08860",
-    fontSize: 13,
+    color: colors.textMuted,
+    fontSize: fontSize.caption,
   },
 });
