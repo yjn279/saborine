@@ -6,6 +6,8 @@ import { fetchHomeState, sendThanks, type HomeState } from "../src/api/home";
 import { fetchSettings } from "../src/api/settings";
 import { useIdentity } from "../src/auth/useIdentity";
 import type { Identity } from "../src/auth/identity";
+import { buildGestureNoticeMessage, decideGestureNotice } from "../src/affection/gestureNotice";
+import { getSeenGestures, setSeenGestures } from "../src/affection/gestureStorage";
 import { AffectionNote } from "../src/components/AffectionNote";
 import { BalanceGauge } from "../src/components/BalanceGauge";
 import { CloseButton } from "../src/components/CloseButton";
@@ -33,7 +35,9 @@ export default function Home() {
   const [thanksSending, setThanksSending] = useState(false);
   const [eating, setEating] = useState(false);
   const [pushBannerVisible, setPushBannerVisible] = useState(false);
+  const [gestureNotice, setGestureNotice] = useState<string | null>(null);
   const eatingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gestureNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pushRestoreStarted = useRef(false);
   const autoInvitePromptShown = useRef(false);
   const isFocusedRef = useRef(false);
@@ -42,6 +46,9 @@ export default function Home() {
     return () => {
       if (eatingTimer.current) {
         clearTimeout(eatingTimer.current);
+      }
+      if (gestureNoticeTimer.current) {
+        clearTimeout(gestureNoticeTimer.current);
       }
     };
   }, []);
@@ -72,17 +79,38 @@ export default function Home() {
       });
   }, [identity]);
 
-  const refresh = useCallback(async (currentIdentity: Identity): Promise<HomeState | null> => {
-    try {
-      const state = await fetchHomeState(currentIdentity);
-      setHomeState(state);
-      setErrorMessage(null);
-      return state;
-    } catch (error) {
-      setErrorMessage(error instanceof ApiError ? error.message : "サボリーヌの ようすが とれませんでした");
-      return null;
+  // 状態を取り直すたびに、新しい仕草が解放されていないかを判断する。知らせを出したとき、
+  // および前回確認した一覧がまだ端末に無いときは、いまの一覧を端末に残して次回に備える。
+  const checkGestureNotice = useCallback(async (gestures: HomeState["myAffection"]["gestures"]) => {
+    const seen = await getSeenGestures();
+    const decision = decideGestureNotice({ current: gestures, previouslySeen: seen });
+    if (decision) {
+      setGestureNotice(buildGestureNoticeMessage(decision));
+      if (gestureNoticeTimer.current) {
+        clearTimeout(gestureNoticeTimer.current);
+      }
+      gestureNoticeTimer.current = setTimeout(() => setGestureNotice(null), EATING_REACTION_MS);
+    }
+    if (seen === null || decision) {
+      await setSeenGestures(gestures);
     }
   }, []);
+
+  const refresh = useCallback(
+    async (currentIdentity: Identity): Promise<HomeState | null> => {
+      try {
+        const state = await fetchHomeState(currentIdentity);
+        setHomeState(state);
+        setErrorMessage(null);
+        await checkGestureNotice(state.myAffection.gestures);
+        return state;
+      } catch (error) {
+        setErrorMessage(error instanceof ApiError ? error.message : "サボリーヌの ようすが とれませんでした");
+        return null;
+      }
+    },
+    [checkGestureNotice],
+  );
 
   // 手紙の自動提示を判断する。1回のアプリ起動につき最大1回だけ判断し、出すと決まった
   // 段階を端末に残してから手紙へ進む。状態がまだ取れていない・取得に失敗したとき、
@@ -179,6 +207,7 @@ export default function Home() {
       <Text style={styles.serif}>{homeState.saborine.serif}</Text>
 
       <AffectionNote gestures={homeState.myAffection.gestures} />
+      {gestureNotice ? <Text style={styles.gestureNotice}>{gestureNotice}</Text> : null}
 
       <BalanceGauge value={homeState.balanceGauge} />
 
@@ -229,6 +258,11 @@ const styles = StyleSheet.create({
   serif: {
     fontSize: 15,
     color: "#6b5237",
+    textAlign: "center",
+  },
+  gestureNotice: {
+    fontSize: 13,
+    color: "#e07a5f",
     textAlign: "center",
   },
   partnerCard: {
