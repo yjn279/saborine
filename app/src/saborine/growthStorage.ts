@@ -13,7 +13,11 @@ export async function getSeenGrowthProgress(): Promise<number | null> {
     return null;
   }
   const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : null;
+  if (!Number.isFinite(parsed)) {
+    console.error("育ち具合の記録が壊れていました", raw);
+    return null;
+  }
+  return parsed;
 }
 
 // ホーム(app/app/index.tsx)が知らせを出すべきか判断したあとに呼ぶ。同じ育ちで
