@@ -64,6 +64,54 @@ describe("きょうのできごとを選ぶ", () => {
     expect(result.map((event) => event.id)).toContain("partners");
   });
 
+  function recordsOf(userId: string, count: number, idPrefix: string) {
+    return Array.from({ length: count }, (_, index) =>
+      record({ id: `${idPrefix}-${index}`, userId, createdAt: new Date(NOW.getTime() + index * 1000) }),
+    );
+  }
+
+  it("相手が6件・自分が6件の日は、相手3件・自分3件の計6件が返る", () => {
+    const records = [...recordsOf(PARTNER, 6, "partner"), ...recordsOf(ME, 6, "mine")];
+    const result = selectTodayEvents(records, ME, NOW);
+    expect(result.filter((event) => !event.mine)).toHaveLength(3);
+    expect(result.filter((event) => event.mine)).toHaveLength(3);
+    expect(result).toHaveLength(6);
+  });
+
+  it("自分が6件・相手が1件の日は、相手の1件を含む計6件が返る", () => {
+    const records = [...recordsOf(PARTNER, 1, "partner"), ...recordsOf(ME, 6, "mine")];
+    const result = selectTodayEvents(records, ME, NOW);
+    expect(result.filter((event) => !event.mine)).toHaveLength(1);
+    expect(result.filter((event) => event.mine)).toHaveLength(5);
+    expect(result).toHaveLength(6);
+  });
+
+  it("相手が5件・自分が0件の日は、相手の5件がすべて返る", () => {
+    const records = recordsOf(PARTNER, 5, "partner");
+    const result = selectTodayEvents(records, ME, NOW);
+    expect(result).toHaveLength(5);
+  });
+
+  it("相手が8件・自分が2件の日は、相手4件・自分2件の計6件が返る", () => {
+    const records = [...recordsOf(PARTNER, 8, "partner"), ...recordsOf(ME, 2, "mine")];
+    const result = selectTodayEvents(records, ME, NOW);
+    expect(result.filter((event) => !event.mine)).toHaveLength(4);
+    expect(result.filter((event) => event.mine)).toHaveLength(2);
+    expect(result).toHaveLength(6);
+  });
+
+  it("枠が絞られても、返る並びは全体を通して新しい順のままである", () => {
+    const records = [...recordsOf(PARTNER, 8, "partner"), ...recordsOf(ME, 2, "mine")];
+    const result = selectTodayEvents(records, ME, NOW);
+    const timestamps = result.map((event) => records.find((record) => record.id === event.id)!.createdAt.getTime());
+    const sorted = [...timestamps].sort((a, b) => b - a);
+    expect(timestamps).toEqual(sorted);
+    // 各側の中でも新しいものが残る: partnerは末尾4件(4-7)、mineは末尾2件(0-1)が残る。
+    expect(result.map((event) => event.id)).toEqual(
+      expect.arrayContaining(["partner-4", "partner-5", "partner-6", "partner-7", "mine-0", "mine-1"]),
+    );
+  });
+
   it("返す1件はid・choreType・mine・thankedの4項目だけを持つ", () => {
     const result = selectTodayEvents([record({ id: "log-1", choreType: "洗い物", thanked: true })], ME, NOW);
     expect(result).toEqual([{ id: "log-1", choreType: "洗い物", mine: true, thanked: true }]);
