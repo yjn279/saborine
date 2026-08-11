@@ -19,8 +19,10 @@ export function decidePose(input: DecidePoseInput): SaborinePose {
       return "sloppy";
     case "thanksWaiting":
       return "happy";
+    // 促しているあいだは、跳ねる動きで目を向けてもらう(app/app/index.tsx)。
+    // 寝ている姿だと動きと矛盾し、見てほしいときに見てもらえない。
     case "nudge":
-      return "sleepy";
+      return "normal";
     default:
       return "normal";
   }

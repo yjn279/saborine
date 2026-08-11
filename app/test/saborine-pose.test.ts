@@ -14,10 +14,11 @@ describe("ホームで出す姿の判断(decidePose)", () => {
     expect(pose).toBe("happy");
   });
 
-  it("セリフの種類が促し(nudge)なら、ねむい姿を返す", () => {
+  it("セリフの種類が促し(nudge)なら、ふつうの姿を返す", () => {
+    // 促しているあいだは跳ねる動きで目を向けてもらう。寝ている姿だと動きと矛盾する。
     const pose = decidePose({ serifKind: "nudge", isEating: false });
 
-    expect(pose).toBe("sleepy");
+    expect(pose).toBe("normal");
   });
 
   it("セリフの種類がふだん(default)なら、ふだんの姿を返す", () => {
