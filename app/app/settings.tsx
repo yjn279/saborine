@@ -139,8 +139,7 @@ export default function Settings() {
     setActionError(null);
     try {
       await unpair(identity);
-      await clearIdentity();
-      await clearInvitePromptState();
+      await Promise.all([clearIdentity(), clearInvitePromptState()]);
       router.replace("/onboarding");
     } catch (error) {
       setActionError(error instanceof ApiError ? error.message : "ペアかいじょに しっぱいしました");
@@ -156,8 +155,7 @@ export default function Settings() {
     setActionError(null);
     try {
       await deleteAccount(identity);
-      await clearIdentity();
-      await clearInvitePromptState();
+      await Promise.all([clearIdentity(), clearInvitePromptState()]);
       router.replace("/onboarding");
     } catch (error) {
       setActionError(error instanceof ApiError ? error.message : "さくじょに しっぱいしました");
