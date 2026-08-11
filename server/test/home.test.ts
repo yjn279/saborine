@@ -51,6 +51,24 @@ describe("ホームの状態", () => {
     expect(body.partnerLatestChore).toBeNull();
   });
 
+  it("ひとりだけのアカウントでは、ペア成立が偽になる", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+
+    const { body } = await getHome(db, account);
+    expect(body.isPaired).toBe(false);
+  });
+
+  it("手紙を受諾して2人になったアカウントでは、双方でペア成立が真になる", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerPair(db, "彩花", "大樹");
+
+    const { body: bodyA } = await getHome(db, a);
+    const { body: bodyB } = await getHome(db, b);
+    expect(bodyA.isPaired).toBe(true);
+    expect(bodyB.isPaired).toBe(true);
+  });
+
   it("迎えたばかりでは、まだ誰も記録していなくてもだらしなモードにならない", async () => {
     const db = await createTestDb();
     const account = await registerTestAccount(db, "彩花");

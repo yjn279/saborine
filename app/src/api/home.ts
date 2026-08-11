@@ -5,6 +5,7 @@ import { apiRequest } from "./client";
 // サーバーとやりとりする値の形。サーバー側(server/src/routes/home.ts, chores.ts)の出力に合わせる。
 
 export interface HomeState {
+  isPaired: boolean;
   saborine: {
     name: string | null;
     isSloppy: boolean;

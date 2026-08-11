@@ -122,6 +122,7 @@ export function createHomeRoutes() {
     });
 
     return c.json({
+      isPaired: partner !== undefined,
       saborine: {
         name: character ? String(character.name) : null,
         isSloppy,

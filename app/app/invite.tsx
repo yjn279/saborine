@@ -6,24 +6,14 @@ import { fetchInviteLetter, type InviteLetter } from "../src/api/invite";
 import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
 import { LetterCard } from "../src/components/LetterCard";
+import { bumpReminderCount, getReminderCount } from "../src/invite/promptStorage";
 import { copyToClipboard, shareOrCopy } from "../src/share";
-import { getStorageItem, setStorageItem } from "../src/storage";
 import { commonStyles } from "../src/styles/common";
 
 // 招待カードの再提示は2回まで(初回記録の直後・3日後を想定)。それ以上はアプリから
 // 促さない(docs/mvp.md:30)。この画面が開かれた回数をその代わりの目印として数え、
 // 3回目以降は「送ってみない?」という誘いの文面を外し、淡々とした再送の道具にする。
 const REMINDER_LIMIT = 2;
-const REMINDER_COUNT_KEY = "saborine.inviteReminderCount";
-
-async function readReminderCount(): Promise<number> {
-  const raw = await getStorageItem(REMINDER_COUNT_KEY);
-  return raw ? Number(raw) : 0;
-}
-
-async function bumpReminderCount(current: number): Promise<void> {
-  await setStorageItem(REMINDER_COUNT_KEY, String(current + 1));
-}
 
 // 手紙を送る画面。プレビューを見せ、「これなら責めていると思われない」と本人が
 // 確認してから、リンクの共有だけを提供する(docs/mvp.md:28)。相手が開いたか・
@@ -43,7 +33,7 @@ export default function Invite() {
     }
     let active = true;
     (async () => {
-      const reminderCount = await readReminderCount();
+      const reminderCount = await getReminderCount();
       if (active) {
         setShowReminder(reminderCount < REMINDER_LIMIT);
       }

@@ -13,6 +13,8 @@ import { ThanksButton } from "../src/components/ThanksButton";
 import { NudgeBounce } from "../src/components/saborine/NudgeBounce";
 import { Saborine } from "../src/components/saborine/Saborine";
 import type { SaborinePose } from "../src/components/saborine/types";
+import { decideInvitePrompt } from "../src/invite/prompt";
+import { getFirstRecordedAt, getInvitePromptStage, setInvitePromptStage } from "../src/invite/promptStorage";
 import { createPushRestorer, shouldShowPushBanner } from "../src/push/restore";
 import { hasPushSubscription, isPushSupported, subscribeToPush } from "../src/push/subscribe";
 import { commonStyles } from "../src/styles/common";
@@ -32,6 +34,8 @@ export default function Home() {
   const [pushBannerVisible, setPushBannerVisible] = useState(false);
   const eatingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pushRestoreStarted = useRef(false);
+  const autoInvitePromptShown = useRef(false);
+  const isFocusedRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -67,26 +71,63 @@ export default function Home() {
       });
   }, [identity]);
 
-  const refresh = useCallback(async (currentIdentity: Identity) => {
+  const refresh = useCallback(async (currentIdentity: Identity): Promise<HomeState | null> => {
     try {
       const state = await fetchHomeState(currentIdentity);
       setHomeState(state);
       setErrorMessage(null);
+      return state;
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "サボリーヌの ようすが とれませんでした");
+      return null;
     }
   }, []);
 
-  // 20秒ごと、および画面に戻ったときに状態を取り直す。
+  // 手紙の自動提示を判断する。1回のアプリ起動につき最大1回だけ判断し、出すと決まった
+  // 段階を端末に残してから手紙へ進む。状態がまだ取れていない・取得に失敗したとき、
+  // および判断の途中で画面から離れたときは何もしない。
+  const promptInviteIfNeeded = useCallback(
+    async (state: HomeState | null) => {
+      if (!state || autoInvitePromptShown.current) {
+        return;
+      }
+      const [firstRecordedAt, stage] = await Promise.all([getFirstRecordedAt(), getInvitePromptStage()]);
+      if (autoInvitePromptShown.current || !isFocusedRef.current) {
+        return;
+      }
+      const decision = decideInvitePrompt({ isPaired: state.isPaired, firstRecordedAt, stage, now: new Date() });
+      if (decision === "none") {
+        return;
+      }
+      autoInvitePromptShown.current = true;
+      await setInvitePromptStage(decision);
+      if (!isFocusedRef.current) {
+        return;
+      }
+      router.push("/invite");
+    },
+    [router],
+  );
+
+  // 画面に戻ったときと20秒ごとに状態を取り直す。手紙の自動提示は、画面に戻った
+  // ときの取り直し後に判断する。
   useFocusEffect(
     useCallback(() => {
       if (!identity) {
         return;
       }
-      refresh(identity);
+      isFocusedRef.current = true;
+      refresh(identity)
+        .then((state) => promptInviteIfNeeded(state))
+        .catch((error: unknown) => {
+          console.error("手紙の自動提示の判断に失敗しました", error);
+        });
       const interval = setInterval(() => refresh(identity), POLL_INTERVAL_MS);
-      return () => clearInterval(interval);
-    }, [identity, refresh]),
+      return () => {
+        isFocusedRef.current = false;
+        clearInterval(interval);
+      };
+    }, [identity, refresh, promptInviteIfNeeded]),
   );
 
   const handleThanks = async () => {
@@ -157,6 +198,17 @@ export default function Home() {
         <Text style={styles.recordButtonText}>きろくする</Text>
       </Pressable>
 
+      {!homeState.isPaired ? (
+        <Pressable
+          style={styles.inviteLink}
+          onPress={() => router.push("/invite")}
+          accessibilityRole="button"
+          accessibilityLabel="サボリーヌの てがみを ひらく"
+        >
+          <Text style={styles.inviteLinkText}>サボリーヌの てがみ</Text>
+        </Pressable>
+      ) : null}
+
       {pushBannerVisible ? (
         <View style={styles.pushBanner}>
           <InAppBanner />
@@ -200,5 +252,13 @@ const styles = StyleSheet.create({
   },
   pushBanner: {
     alignItems: "center",
+  },
+  inviteLink: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  inviteLinkText: {
+    color: "#a08860",
+    fontSize: 13,
   },
 });
