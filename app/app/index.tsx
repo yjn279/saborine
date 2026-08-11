@@ -13,12 +13,29 @@ import { ThanksButton } from "../src/components/ThanksButton";
 import { NudgeBounce } from "../src/components/saborine/NudgeBounce";
 import { Saborine } from "../src/components/saborine/Saborine";
 import type { SaborinePose } from "../src/components/saborine/types";
+import { decideInvitePrompt, type InvitePromptStage } from "../src/invite/prompt";
+import { getFirstRecordedAt } from "../src/invite/promptStorage";
 import { createPushRestorer, shouldShowPushBanner } from "../src/push/restore";
 import { hasPushSubscription, isPushSupported, subscribeToPush } from "../src/push/subscribe";
+import { getStorageItem, setStorageItem } from "../src/storage";
 import { commonStyles } from "../src/styles/common";
 
 const POLL_INTERVAL_MS = 20_000;
 const EATING_REACTION_MS = 1_400;
+
+// 自動提示のうち、これまでにどこまで出したかを端末に残す(app/src/invite/prompt.ts の
+// InvitePromptStage と同じ言葉)。既存の再提示回数(saborine.inviteReminderCount,
+// app/invite.tsx)とは別の名前にする。
+const INVITE_PROMPT_STAGE_KEY = "saborine.invitePromptStage";
+
+async function getInvitePromptStage(): Promise<InvitePromptStage> {
+  const raw = await getStorageItem(INVITE_PROMPT_STAGE_KEY);
+  return raw === "first" || raw === "second" ? raw : "none";
+}
+
+async function setInvitePromptStage(stage: InvitePromptStage): Promise<void> {
+  await setStorageItem(INVITE_PROMPT_STAGE_KEY, stage);
+}
 
 // 生活の中心となるホーム画面。サボリーヌ・息ぴったりゲージ・記録ボタン・
 // 相手の直近の記録とありがとうボタンだけを置き、数値・回数・順位は一切出さない。
@@ -32,6 +49,7 @@ export default function Home() {
   const [pushBannerVisible, setPushBannerVisible] = useState(false);
   const eatingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pushRestoreStarted = useRef(false);
+  const autoInvitePromptShown = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -67,26 +85,53 @@ export default function Home() {
       });
   }, [identity]);
 
-  const refresh = useCallback(async (currentIdentity: Identity) => {
+  const refresh = useCallback(async (currentIdentity: Identity): Promise<HomeState | null> => {
     try {
       const state = await fetchHomeState(currentIdentity);
       setHomeState(state);
       setErrorMessage(null);
+      return state;
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "サボリーヌの ようすが とれませんでした");
+      return null;
     }
   }, []);
 
-  // 20秒ごと、および画面に戻ったときに状態を取り直す。
+  // 手紙の自動提示を判断する。ホームに入った瞬間の取り直し(下のuseFocusEffect)からだけ
+  // 呼び、20秒ごとの取り直しからは呼ばない。1回のアプリ起動につき最大1回だけ判断し、
+  // 出すと決まった段階は端末に残してから手紙へ進む(戻ってきたときに同じ段階が二度
+  // 出ないようにするため)。状態がまだ取れていない・取得に失敗したときは何もしない。
+  const promptInviteIfNeeded = useCallback(
+    async (state: HomeState | null) => {
+      if (!state || autoInvitePromptShown.current) {
+        return;
+      }
+      const [firstRecordedAt, stage] = await Promise.all([getFirstRecordedAt(), getInvitePromptStage()]);
+      if (autoInvitePromptShown.current) {
+        return;
+      }
+      const decision = decideInvitePrompt({ isPaired: state.isPaired, firstRecordedAt, stage, now: new Date() });
+      if (decision === "none") {
+        return;
+      }
+      autoInvitePromptShown.current = true;
+      await setInvitePromptStage(decision);
+      router.push("/invite");
+    },
+    [router],
+  );
+
+  // 20秒ごと、および画面に戻ったときに状態を取り直す。手紙の自動提示は、画面に
+  // 戻った瞬間の取り直しにだけ乗せる。
   useFocusEffect(
     useCallback(() => {
       if (!identity) {
         return;
       }
-      refresh(identity);
+      refresh(identity).then((state) => promptInviteIfNeeded(state));
       const interval = setInterval(() => refresh(identity), POLL_INTERVAL_MS);
       return () => clearInterval(interval);
-    }, [identity, refresh]),
+    }, [identity, refresh, promptInviteIfNeeded]),
   );
 
   const handleThanks = async () => {
