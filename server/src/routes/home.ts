@@ -6,7 +6,7 @@ import { calcBalanceGauge } from "../domain/gauge.js";
 import { unlockedGestures } from "../domain/affection.js";
 import { isSloppyMode } from "../domain/mood.js";
 import { pickLine } from "../domain/lines.js";
-import { selectTodayEvents, type ChoreLogRecord } from "../domain/today.js";
+import { hasUnthankedPartnerEvent, selectTodayEvents, type ChoreLogRecord } from "../domain/today.js";
 
 const GAUGE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const RECENT_RECORD_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -50,20 +50,26 @@ export function createHomeRoutes() {
     // 使うことで、迎えたばかりのサボリーヌが開口一番だらしない姿にならないようにする。
     const characterCreatedAt = character ? parseStoredTimestamp(character.created_at) : now;
 
+    // 行の時刻は一度だけ読み解き、最後の記録時刻ときょうのできごとの両方に使い回す。
+    const parsedChoreRows = chorePairResult.rows.map((row) => ({
+      id: String(row.id),
+      userId: String(row.user_id),
+      choreType: String(row.chore_type),
+      createdAt: parseStoredTimestamp(row.created_at),
+    }));
+
     // ユーザーごとの最後の記録時刻(だらしなモード判定用)を、記録一覧から求める。
     // 行はcreated_at, rowidの昇順で来るため、同じ秒でも最後に読んだ行が最新になる。
     let myLastRecordAt: Date | null = null;
     let partnerLastRecordAt: Date | null = null;
-    for (const row of chorePairResult.rows) {
-      const rowUserId = String(row.user_id);
-      const createdAt = parseStoredTimestamp(row.created_at);
-      if (rowUserId === user.id) {
-        if (myLastRecordAt === null || createdAt >= myLastRecordAt) {
-          myLastRecordAt = createdAt;
+    for (const row of parsedChoreRows) {
+      if (row.userId === user.id) {
+        if (myLastRecordAt === null || row.createdAt >= myLastRecordAt) {
+          myLastRecordAt = row.createdAt;
         }
-      } else if (rowUserId === partnerId) {
-        if (partnerLastRecordAt === null || createdAt >= partnerLastRecordAt) {
-          partnerLastRecordAt = createdAt;
+      } else if (row.userId === partnerId) {
+        if (partnerLastRecordAt === null || row.createdAt >= partnerLastRecordAt) {
+          partnerLastRecordAt = row.createdAt;
         }
       }
     }
@@ -103,15 +109,12 @@ export function createHomeRoutes() {
     }
     const balanceGauge = calcBalanceGauge(myRecentThanksCount, partnerRecentThanksCount);
 
-    // chorePairResultは古い順(created_at, rowidの昇順)なので、そのまま反転すれば新しい順になる。
+    // parsedChoreRowsは古い順(created_at, rowidの昇順)なので、そのまま反転すれば新しい順になる。
     // created_at(秒精度)が同じ記録が並んでも、rowidによる前後がここで保たれる。
-    const choreLogRecords: ChoreLogRecord[] = chorePairResult.rows
+    const choreLogRecords: ChoreLogRecord[] = parsedChoreRows
       .map((row) => ({
-        id: String(row.id),
-        userId: String(row.user_id),
-        choreType: String(row.chore_type),
-        createdAt: parseStoredTimestamp(row.created_at),
-        thanked: thankedChoreLogIds.has(String(row.id)),
+        ...row,
+        thanked: thankedChoreLogIds.has(row.id),
       }))
       .reverse();
     const todayEvents = selectTodayEvents(choreLogRecords, user.id, now);
@@ -120,7 +123,7 @@ export function createHomeRoutes() {
       myLastRecordAt !== null && now.getTime() - myLastRecordAt.getTime() < RECENT_RECORD_WINDOW_MS;
     const line = pickLine({
       isSloppy,
-      hasUnthankedPartnerChore: todayEvents.some((event) => !event.mine && !event.thanked),
+      hasUnthankedPartnerChore: hasUnthankedPartnerEvent(todayEvents),
       hasRecordedRecently,
       pairId: user.pairId,
       now,

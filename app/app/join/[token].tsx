@@ -6,7 +6,7 @@ import { fetchHomeState, sendThanks, type HomeState } from "../../src/api/home";
 import { acceptInvite, fetchInvitePreview, type InvitePreview } from "../../src/api/invite";
 import { loadIdentity, type Identity } from "../../src/auth/identity";
 import { registerIdentity, retrySaveIdentity, type IdentityRegistrationResult } from "../../src/auth/register";
-import { decideTodayEventView } from "../../src/home/todayEvents";
+import { decideTodayEventView, findPartnerEvent } from "../../src/home/todayEvents";
 import { LetterCard } from "../../src/components/LetterCard";
 import { Saborine } from "../../src/components/saborine/Saborine";
 import { ThanksButton } from "../../src/components/ThanksButton";
@@ -137,8 +137,7 @@ export default function Join() {
     await applyJoinResult(await retrySaveIdentity(pendingIdentity));
   };
 
-  // きょうの相手の記録のうち、いちばん新しい1件(新しい順に並ぶtodayEventsの先頭)。
-  const partnerEvent = homeState?.todayEvents.find((event) => !event.mine) ?? null;
+  const partnerEvent = findPartnerEvent(homeState?.todayEvents ?? []);
   const partnerEventView = partnerEvent ? decideTodayEventView(partnerEvent) : null;
 
   const handleThanks = async () => {

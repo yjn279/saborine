@@ -55,6 +55,15 @@ describe("きょうのできごとを選ぶ", () => {
     expect(result.map((event) => event.id)).toEqual(["log-7", "log-6", "log-5", "log-4", "log-3", "log-2"]);
   });
 
+  it("自分が6件以上記録していても、相手の記録は上限に押し出されない", () => {
+    const mine = Array.from({ length: 6 }, (_, index) =>
+      record({ id: `mine-${index}`, userId: ME, createdAt: new Date(NOW.getTime() + (index + 1) * 1000) }),
+    );
+    const partners = record({ id: "partners", userId: PARTNER, createdAt: NOW });
+    const result = selectTodayEvents([...mine, partners], ME, NOW);
+    expect(result.map((event) => event.id)).toContain("partners");
+  });
+
   it("返す1件はid・choreType・mine・thankedの4項目だけを持つ", () => {
     const result = selectTodayEvents([record({ id: "log-1", choreType: "洗い物", thanked: true })], ME, NOW);
     expect(result).toEqual([{ id: "log-1", choreType: "洗い物", mine: true, thanked: true }]);

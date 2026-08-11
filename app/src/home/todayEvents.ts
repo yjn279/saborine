@@ -26,3 +26,13 @@ export function decideTodayEventView(event: TodayEvent): TodayEventView {
     thanked: event.thanked,
   };
 }
+
+// きょうの相手の記録のうち、いちばん新しい1件(新しい順に並ぶtodayEventsの先頭)。
+export function findPartnerEvent(events: TodayEvent[]): TodayEvent | null {
+  return events.find((event) => !event.mine) ?? null;
+}
+
+// 指定した記録に、すでにありがとうが届いているか。
+export function isEventThanked(events: TodayEvent[], eventId: string): boolean {
+  return events.find((event) => event.id === eventId)?.thanked ?? false;
+}

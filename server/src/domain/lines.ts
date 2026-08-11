@@ -6,7 +6,7 @@ import { jstDayNumber } from "./week.js";
 export interface LineContext {
   // ふたりとも記録が3日途切れている(だらしなモード中)か
   isSloppy: boolean;
-  // 相手の直近の記録に、自分がまだありがとうを送っていないか
+  // きょうの相手の記録に、自分がまだありがとうを送っていないものがあるか
   hasUnthankedPartnerChore: boolean;
   // 自分がこの24時間のうちに記録したか
   hasRecordedRecently: boolean;

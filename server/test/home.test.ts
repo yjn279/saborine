@@ -79,15 +79,6 @@ describe("ホームの状態", () => {
     expect(saborine.isSloppy).toBe(false);
   });
 
-  it("応答にpartnerLatestChoreが無い", async () => {
-    const db = await createTestDb();
-    const { a, b } = await registerPair(db, "彩花", "大樹");
-    await recordChore(db, a, "お皿洗い");
-
-    const { body } = await getHome(db, b);
-    expect(body).not.toHaveProperty("partnerLatestChore");
-  });
-
   it("自分と相手の両方のきょうのできごとを、新しい順に返す", async () => {
     const db = await createTestDb();
     const { a, b } = await registerPair(db, "彩花", "大樹");

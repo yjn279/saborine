@@ -19,7 +19,7 @@ import type { SaborineGesture } from "../src/components/saborine/types";
 import { useTimeoutRef } from "../src/hooks/useTimeoutRef";
 import { decideInvitePrompt } from "../src/invite/prompt";
 import { getFirstRecordedAt, getInvitePromptStage, setInvitePromptStage } from "../src/invite/promptStorage";
-import { decideTodayEventView } from "../src/home/todayEvents";
+import { decideTodayEventView, isEventThanked } from "../src/home/todayEvents";
 import { createPushRestorer, shouldShowPushBanner } from "../src/push/restore";
 import { hasPushSubscription, isPushSupported, subscribeToPush } from "../src/push/subscribe";
 import { REACTION_DURATION_MS } from "../src/reactionDuration";
@@ -163,7 +163,8 @@ export default function Home() {
   );
 
   const handleThanks = async (choreLogId: string) => {
-    if (!identity || sendingIds.includes(choreLogId)) {
+    const alreadyThanked = isEventThanked(homeState?.todayEvents ?? [], choreLogId);
+    if (!identity || sendingIds.includes(choreLogId) || alreadyThanked) {
       return;
     }
     setSendingIds((ids) => [...ids, choreLogId]);
