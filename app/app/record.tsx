@@ -7,7 +7,6 @@ import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
 import { Saborine } from "../src/components/saborine/Saborine";
 import { useTimeoutRef } from "../src/hooks/useTimeoutRef";
-import { markFirstRecordedAt } from "../src/invite/promptStorage";
 import { REACTION_DURATION_MS } from "../src/reactionDuration";
 import { buildRecordReactionMessage } from "../src/record/reaction";
 import { commonStyles } from "../src/styles/common";
@@ -67,9 +66,6 @@ export default function Record() {
       setRecordingChoreType(null);
       return;
     }
-    markFirstRecordedAt().catch((error: unknown) => {
-      console.error("初めての記録の日時を残せませんでした", error);
-    });
     setReactionMessage(buildRecordReactionMessage({ choreType: trimmed, wasSloppy }));
     closeTimer.arm(() => {
       closedRef.current = true;
