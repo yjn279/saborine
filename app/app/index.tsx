@@ -6,6 +6,7 @@ import { fetchHomeState, sendThanks, type HomeState } from "../src/api/home";
 import { fetchSettings } from "../src/api/settings";
 import { useIdentity } from "../src/auth/useIdentity";
 import type { Identity } from "../src/auth/identity";
+import { AffectionNote } from "../src/components/AffectionNote";
 import { BalanceGauge } from "../src/components/BalanceGauge";
 import { CloseButton } from "../src/components/CloseButton";
 import { InAppBanner } from "../src/components/InAppBanner";
@@ -176,6 +177,8 @@ export default function Home() {
         </NudgeBounce>
       </Pressable>
       <Text style={styles.serif}>{homeState.saborine.serif}</Text>
+
+      <AffectionNote gestures={homeState.myAffection.gestures} />
 
       <BalanceGauge value={homeState.balanceGauge} />
 
