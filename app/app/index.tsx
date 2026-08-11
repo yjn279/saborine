@@ -12,11 +12,11 @@ import { InAppBanner } from "../src/components/InAppBanner";
 import { ThanksButton } from "../src/components/ThanksButton";
 import { NudgeBounce } from "../src/components/saborine/NudgeBounce";
 import { Saborine } from "../src/components/saborine/Saborine";
-import type { SaborinePose } from "../src/components/saborine/types";
 import { decideInvitePrompt } from "../src/invite/prompt";
 import { getFirstRecordedAt, getInvitePromptStage, setInvitePromptStage } from "../src/invite/promptStorage";
 import { createPushRestorer, shouldShowPushBanner } from "../src/push/restore";
 import { hasPushSubscription, isPushSupported, subscribeToPush } from "../src/push/subscribe";
+import { decidePose } from "../src/saborine/pose";
 import { commonStyles } from "../src/styles/common";
 
 const POLL_INTERVAL_MS = 20_000;
@@ -149,8 +149,6 @@ export default function Home() {
     }
   };
 
-  const pose: SaborinePose = eating ? "eating" : homeState?.saborine.isSloppy ? "sloppy" : "normal";
-
   if (!identity || !homeState) {
     return (
       <View style={commonStyles.screenContainer}>
@@ -158,6 +156,8 @@ export default function Home() {
       </View>
     );
   }
+
+  const pose = decidePose({ serifKind: homeState.saborine.serifKind, isEating: eating });
 
   return (
     <View style={commonStyles.screenContainer}>
