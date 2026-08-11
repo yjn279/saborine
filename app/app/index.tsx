@@ -19,11 +19,11 @@ import { decideInvitePrompt } from "../src/invite/prompt";
 import { getFirstRecordedAt, getInvitePromptStage, setInvitePromptStage } from "../src/invite/promptStorage";
 import { createPushRestorer, shouldShowPushBanner } from "../src/push/restore";
 import { hasPushSubscription, isPushSupported, subscribeToPush } from "../src/push/subscribe";
+import { REACTION_DURATION_MS } from "../src/reactionDuration";
 import { decidePose } from "../src/saborine/pose";
 import { commonStyles } from "../src/styles/common";
 
 const POLL_INTERVAL_MS = 20_000;
-const EATING_REACTION_MS = 1_400;
 
 // 生活の中心となるホーム画面。サボリーヌ・息ぴったりゲージ・記録ボタン・
 // 相手の直近の記録とありがとうボタンだけを置き、数値・回数・順位は一切出さない。
@@ -89,7 +89,7 @@ export default function Home() {
       if (gestureNoticeTimer.current) {
         clearTimeout(gestureNoticeTimer.current);
       }
-      gestureNoticeTimer.current = setTimeout(() => setGestureNotice(null), EATING_REACTION_MS);
+      gestureNoticeTimer.current = setTimeout(() => setGestureNotice(null), REACTION_DURATION_MS);
     }
     if (seen === null || decision) {
       await setSeenGestures(gestures);
@@ -169,7 +169,7 @@ export default function Home() {
     try {
       await sendThanks(identity, chore.id);
       setEating(true);
-      eatingTimer.current = setTimeout(() => setEating(false), EATING_REACTION_MS);
+      eatingTimer.current = setTimeout(() => setEating(false), REACTION_DURATION_MS);
       await refresh(identity);
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "ありがとうを おくれませんでした");

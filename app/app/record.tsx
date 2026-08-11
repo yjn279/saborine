@@ -7,11 +7,11 @@ import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
 import { Saborine } from "../src/components/saborine/Saborine";
 import { markFirstRecordedAt } from "../src/invite/promptStorage";
+import { REACTION_DURATION_MS } from "../src/reactionDuration";
 import { buildRecordReactionMessage } from "../src/record/reaction";
 import { commonStyles } from "../src/styles/common";
 
 const FREE_TEXT_MAX_LENGTH = 30;
-const REACTION_DURATION_MS = 1_400;
 
 // 記録シート。ホームの記録ボタンと、サボリーヌ自身をタップしたときの両方から開く
 // (docs/mvp.md:53)。プリセット6種は最近使った順に並び、1タップで記録が完了する。
