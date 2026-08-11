@@ -227,7 +227,7 @@ export default function Home() {
             const view = decideTodayEventView(event);
             return (
               <View key={event.id} style={styles.eventRow}>
-                <Text style={styles.partnerText} numberOfLines={1}>
+                <Text style={styles.eventText} numberOfLines={1}>
                   {view.text}
                 </Text>
                 {view.showThanksButton ? (
@@ -243,7 +243,7 @@ export default function Home() {
           })}
         </View>
       ) : (
-        <Text style={styles.partnerEmpty}>まだ とどいてないみたい</Text>
+        <Text style={styles.todayEmpty}>まだ とどいてないみたい</Text>
       )}
 
       {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
     color: colors.highlight,
     textAlign: "center",
   },
-  partnerText: {
+  eventText: {
     fontSize: fontSize.serif,
     color: colors.text,
     // ありがとうの操作のぶんを差し引いた残り幅いっぱいに収め、1行に保つ。
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     gap: space.md,
     width: "100%",
   },
-  partnerEmpty: {
+  todayEmpty: {
     fontSize: fontSize.caption,
     color: colors.textFaint,
   },
