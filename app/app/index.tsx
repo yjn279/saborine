@@ -19,8 +19,8 @@ import { NudgeBounce } from "../src/components/saborine/NudgeBounce";
 import { Saborine } from "../src/components/saborine/Saborine";
 import type { SaborineGesture } from "../src/components/saborine/types";
 import { useTimeoutRef } from "../src/hooks/useTimeoutRef";
-import { decideInvitePrompt } from "../src/invite/prompt";
-import { getFirstRecordedAt, getInvitePromptStage, setInvitePromptStage } from "../src/invite/promptStorage";
+import { decideInvitePrompt, parseFirstRecordedAt } from "../src/invite/prompt";
+import { getInvitePromptStage, setInvitePromptStage } from "../src/invite/promptStorage";
 import { decideTodayEventView, isEventThanked } from "../src/home/todayEvents";
 import { createPushRestorer, shouldShowPushBanner } from "../src/push/restore";
 import { hasPushSubscription, isPushSupported, subscribeToPush } from "../src/push/subscribe";
@@ -152,11 +152,16 @@ export default function Home() {
       if (!state || autoInvitePromptShown.current) {
         return;
       }
-      const [firstRecordedAt, stage] = await Promise.all([getFirstRecordedAt(), getInvitePromptStage()]);
+      const stage = await getInvitePromptStage();
       if (autoInvitePromptShown.current || !isFocusedRef.current) {
         return;
       }
-      const decision = decideInvitePrompt({ isPaired: state.isPaired, firstRecordedAt, stage, now: new Date() });
+      const decision = decideInvitePrompt({
+        isPaired: state.isPaired,
+        firstRecordedAt: parseFirstRecordedAt(state.firstRecordedAt),
+        stage,
+        now: new Date(),
+      });
       if (decision === "none") {
         return;
       }

@@ -14,6 +14,9 @@ export interface TodayEvent {
 
 export interface HomeState {
   isPaired: boolean;
+  // ふたりのいちばん古い家事の記録の日時(ISO 8601、末尾はZ)。1件も無ければnull。
+  // 手紙の自動提示(app/src/invite/prompt.ts)の起点として使う。
+  firstRecordedAt: string | null;
   saborine: {
     name: string | null;
     isSloppy: boolean;

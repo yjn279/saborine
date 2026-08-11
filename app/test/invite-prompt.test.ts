@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideInvitePrompt, type InvitePromptStage } from "../src/invite/prompt";
+import { decideInvitePrompt, parseFirstRecordedAt, type InvitePromptStage } from "../src/invite/prompt";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -100,5 +100,39 @@ describe("手紙を自動で出すかどうかの判断(decideInvitePrompt)", ()
 
     expect(promptedCount).toBe(2);
     expect(sawSecond).toBe(true);
+  });
+});
+
+describe("サーバーの日時をDateに直す(parseFirstRecordedAt)", () => {
+  it("nullを渡すとnullを返す", () => {
+    expect(parseFirstRecordedAt(null)).toBeNull();
+  });
+
+  it("ISO 8601文字列を渡すと同じ日時のDateを返す", () => {
+    const parsed = parseFirstRecordedAt("2026-01-01T00:00:00.000Z");
+
+    expect(parsed?.getTime()).toBe(new Date("2026-01-01T00:00:00.000Z").getTime());
+  });
+
+  it("端末に何も保存されていなくても、サーバーが日時を返していれば1回目として出す(段階がnoneのとき)", () => {
+    const decision = decideInvitePrompt({
+      isPaired: false,
+      firstRecordedAt: parseFirstRecordedAt("2026-01-01T00:00:00.000Z"),
+      stage: "none",
+      now: new Date("2026-01-01T00:00:00.000Z"),
+    });
+
+    expect(decision).toBe("first");
+  });
+
+  it("ペアが成立していれば、サーバーが日時を返していても出さない", () => {
+    const decision = decideInvitePrompt({
+      isPaired: true,
+      firstRecordedAt: parseFirstRecordedAt("2026-01-01T00:00:00.000Z"),
+      stage: "none",
+      now: new Date("2026-01-01T00:00:00.000Z"),
+    });
+
+    expect(decision).toBe("none");
   });
 });

@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
-import type { Db } from "../src/db.js";
+import { formatStoredTimestamp, type Db } from "../src/db.js";
 import {
   createTestDb,
   registerTestAccount,
   registerTestPair as registerPair,
   type TestAccount,
 } from "./helpers.js";
+
+async function insertChoreLogAt(db: Db, pairId: string, userId: string, choreType: string, createdAt: Date) {
+  await db.execute({
+    sql: "INSERT INTO chore_logs (id, pair_id, user_id, chore_type, created_at) VALUES (?, ?, ?, ?, ?)",
+    args: [crypto.randomUUID(), pairId, userId, choreType, formatStoredTimestamp(createdAt)],
+  });
+}
 
 async function getHome(db: Db, account: TestAccount) {
   const res = await createApp(db).request("/api/home", {
@@ -226,6 +233,55 @@ describe("ホームの状態", () => {
     const saborine = body.saborine as { isSloppy: boolean; serifKind: string };
     expect(saborine.isSloppy).toBe(true);
     expect(saborine.serifKind).toBe("sloppy");
+  });
+
+  it("記録が無いペアでは、firstRecordedAtがnullになる", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+
+    const { body } = await getHome(db, account);
+    expect(body.firstRecordedAt).toBeNull();
+  });
+
+  it("記録が複数あるとき、firstRecordedAtは挿入順ではなくいちばん古い記録の日時になる", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerPair(db, "彩花", "大樹");
+    // 新しい記録を先に挿入し、古い記録をあとから挿入する。挿入順ではなく日時で決まることを確かめる。
+    await insertChoreLogAt(db, a.pairId, b.userId, "ゴミ出し", new Date("2024-06-01T00:00:00.000Z"));
+    await insertChoreLogAt(db, a.pairId, a.userId, "お皿洗い", new Date("2024-05-01T00:00:00.000Z"));
+
+    const { body } = await getHome(db, a);
+    expect(body.firstRecordedAt).toBe("2024-05-01T00:00:00.000Z");
+  });
+
+  it("firstRecordedAtはZ終わりのISO8601であり、new Date()に渡すと保存された時刻と一致する", async () => {
+    const db = await createTestDb();
+    const account = await registerTestAccount(db, "彩花");
+    await recordChore(db, account, "掃除");
+
+    const { body } = await getHome(db, account);
+    const firstRecordedAt = body.firstRecordedAt as string;
+    expect(firstRecordedAt).toMatch(/Z$/);
+    expect(new Date(firstRecordedAt).getTime()).not.toBeNaN();
+  });
+
+  it("ペアが成立しているときも、成立していないときと同じ形でfirstRecordedAtを返す", async () => {
+    const db = await createTestDb();
+    const { a } = await registerPair(db, "彩花", "大樹");
+    await recordChore(db, a, "掃除");
+
+    const { body } = await getHome(db, a);
+    expect(typeof body.firstRecordedAt).toBe("string");
+  });
+
+  it("誰が記録したかはfirstRecordedAtに含まれない", async () => {
+    const db = await createTestDb();
+    const { a, b } = await registerPair(db, "彩花", "大樹");
+    await recordChore(db, a, "お皿洗い");
+
+    const { body: bodyA } = await getHome(db, a);
+    const { body: bodyB } = await getHome(db, b);
+    expect(bodyA.firstRecordedAt).toBe(bodyB.firstRecordedAt);
   });
 
   it("応答に見せ方(跳ねる・動かす)を指示する項目が無い", async () => {
