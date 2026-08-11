@@ -199,6 +199,7 @@ export default function Home() {
         <NudgeBounce active={homeState.saborine.serifKind === "nudge"}>
           <Saborine
             pose={pose}
+            size={220}
             unlockedGestures={homeState.myAffection.gestures}
             evolutionStage={homeState.saborine.evolutionStage}
             evolutionLineage={homeState.saborine.evolutionLineage}
@@ -212,7 +213,9 @@ export default function Home() {
       <View style={styles.saborineState}>
         <AffectionNote gestures={homeState.myAffection.gestures} />
         {gestureNotice ? <Text style={styles.gestureNotice}>{gestureNotice}</Text> : null}
-        <BalanceGauge value={homeState.balanceGauge} />
+        {/* 息ぴったりはふたりの間に生まれるもの。相手がいないうちは出さない。
+            空の帯を置いても、埋める相手がいないため意味を持たない。 */}
+        {homeState.isPaired ? <BalanceGauge value={homeState.balanceGauge} /> : null}
       </View>
 
       {homeState.partnerLatestChore ? (
@@ -261,6 +264,8 @@ const styles = StyleSheet.create({
     color: colors.serif,
     textAlign: "center",
     lineHeight: fontSize.serif * 1.6,
+    // 幅いっぱいに伸ばすと、最後の1〜2文字だけが次の行に落ちる。
+    maxWidth: 300,
   },
   // サボリーヌの様子をひとまとまりにする。個々の間隔は狭く、外との間隔は広く。
   saborineState: {

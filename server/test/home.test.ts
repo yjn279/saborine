@@ -47,7 +47,8 @@ describe("ホームの状態", () => {
     const myAffection = body.myAffection as { value: number; gestures: string[] };
     expect(myAffection.value).toBe(0);
     expect(myAffection.gestures).toEqual([]);
-    expect(body.balanceGauge).toBe(1);
+    // ひとりのうちは息ぴったりも何も起きていないため空。画面でも帯は出さない。
+    expect(body.balanceGauge).toBe(0);
     expect(body.partnerLatestChore).toBeNull();
   });
 
