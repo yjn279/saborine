@@ -8,7 +8,7 @@ import { useIdentity } from "../src/auth/useIdentity";
 import type { Identity } from "../src/auth/identity";
 import { buildGestureNoticeMessage, decideGestureNotice } from "../src/affection/gestureNotice";
 import { getSeenGestures, setSeenGestures } from "../src/affection/gestureStorage";
-import { buildGrowthNoticeMessage, decideGrowthNotice, isGrowthCycleReset } from "../src/saborine/growthNotice";
+import { buildGrowthNoticeMessage, decideGrowthNotice } from "../src/saborine/growthNotice";
 import { getSeenGrowthProgress, setSeenGrowthProgress } from "../src/saborine/growthStorage";
 import { AffectionNote } from "../src/components/AffectionNote";
 import { BalanceGauge } from "../src/components/BalanceGauge";
@@ -86,9 +86,9 @@ export default function Home() {
 
   // 状態を取り直すたびに、新しい仕草の解放と育ちの前進のどちらを知らせるべきかを判断する。
   // 両方成立していても仕草の解放を優先し、育ちの知らせと2つ並べない。知らせを出したとき、
-  // 前回確認した値がまだ端末に無いとき、および進化して育ち具合の周期が測り直されたとき
-  // (isGrowthCycleReset)は、いまの値を端末に残して次回に備える(仕草の解放を知らせた
-  // ときも、育ちの知らせが後から遅れて出ないよう育ち具合は残す)。
+  // 前回確認した値がまだ端末に無いとき、および育ち具合が前回確認した値と変わっている
+  // (進化して周期が測り直されたときを含む)ときは、いまの値を端末に残して次回に備える
+  // (仕草の解放を知らせたときも、育ちの知らせが後から遅れて出ないよう育ち具合は残す)。
   const checkNotices = useCallback(
     async (gestures: HomeState["myAffection"]["gestures"], growthProgress: number) => {
       const [seenGestures, seenGrowthProgress] = await Promise.all([
@@ -99,15 +99,16 @@ export default function Home() {
       seenGrowthProgressRef.current = seenGrowthProgress;
 
       const gestureDecision = decideGestureNotice({ current: gestures, previouslySeen: seenGestures });
-      const growthNoticeInput = { current: growthProgress, previouslySeen: seenGrowthProgress };
-      const growthDecision = !gestureDecision && decideGrowthNotice(growthNoticeInput);
-      const growthCycleReset = isGrowthCycleReset(growthNoticeInput);
+      const growthDecision =
+        !gestureDecision && decideGrowthNotice({ current: growthProgress, previouslySeen: seenGrowthProgress });
 
-      if (gestureDecision) {
-        setNotice(buildGestureNoticeMessage(gestureDecision));
-        noticeTimer.arm(() => setNotice(null), REACTION_DURATION_MS);
-      } else if (growthDecision) {
-        setNotice(buildGrowthNoticeMessage());
+      const message = gestureDecision
+        ? buildGestureNoticeMessage(gestureDecision)
+        : growthDecision
+          ? buildGrowthNoticeMessage()
+          : null;
+      if (message) {
+        setNotice(message);
         noticeTimer.arm(() => setNotice(null), REACTION_DURATION_MS);
       }
 
@@ -117,7 +118,7 @@ export default function Home() {
           console.error("解放済みの仕草を残せませんでした", error);
         });
       }
-      if (seenGrowthProgress === null || gestureDecision || growthDecision || growthCycleReset) {
+      if (seenGrowthProgress === null || gestureDecision || growthProgress !== seenGrowthProgress) {
         seenGrowthProgressRef.current = growthProgress;
         setSeenGrowthProgress(growthProgress).catch((error: unknown) => {
           console.error("育ち具合を残せませんでした", error);

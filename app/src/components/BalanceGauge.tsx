@@ -1,4 +1,5 @@
 import { StyleSheet, View } from "react-native";
+import { clamp01 } from "../ratio";
 
 interface BalanceGaugeProps {
   // 0〜1の割合。回数や差の数値は一切表示しない(docs/mvp.md:142)。
@@ -8,7 +9,7 @@ interface BalanceGaugeProps {
 // 息ぴったりゲージ。ふたりの記録の釣り合いを1本の帯の満ち具合だけで見せる。
 // 数字・回数・順位は描かない。
 export function BalanceGauge({ value }: BalanceGaugeProps) {
-  const ratio = Math.max(0, Math.min(1, value));
+  const ratio = clamp01(value);
 
   return (
     <View
