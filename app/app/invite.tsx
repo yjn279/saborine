@@ -23,7 +23,6 @@ export default function Invite() {
   const identity = useIdentity();
   const [letter, setLetter] = useState<InviteLetter | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
   const [showReminder, setShowReminder] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -95,26 +94,17 @@ export default function Invite() {
         <>
           <LetterCard lines={letter.body} />
 
-          {!confirmed ? (
-            <View style={styles.confirmBox}>
-              <Text style={styles.confirmText}>これなら せめている かんじが しない、とおもったら</Text>
-              <Pressable style={styles.confirmButton} onPress={() => setConfirmed(true)}>
-                <Text style={styles.confirmButtonText}>そう おもう</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.shareBox}>
-              {showReminder ? (
-                <Text style={styles.hint}>いっしょに いるときに がめんを みせて さそうのも おすすめだよ</Text>
-              ) : null}
-              <Pressable style={[commonStyles.shareButton, styles.shareButton]} onPress={handleShare}>
-                <Text style={commonStyles.shareButtonText}>リンクを おくる</Text>
-              </Pressable>
-              <Pressable style={styles.copyButton} onPress={handleCopy}>
-                <Text style={styles.copyButtonText}>{copied ? "コピーしたよ" : "リンクを コピーする"}</Text>
-              </Pressable>
-            </View>
-          )}
+          <View style={styles.shareBox}>
+            {showReminder ? (
+              <Text style={styles.hint}>いっしょに いるときに がめんを みせて さそうのも おすすめだよ</Text>
+            ) : null}
+            <Pressable style={[commonStyles.shareButton, styles.shareButton]} onPress={handleShare}>
+              <Text style={commonStyles.shareButtonText}>リンクを おくる</Text>
+            </Pressable>
+            <Pressable style={styles.copyButton} onPress={handleCopy}>
+              <Text style={styles.copyButtonText}>{copied ? "コピーしたよ" : "リンクを コピーする"}</Text>
+            </Pressable>
+          </View>
         </>
       ) : null}
 
@@ -124,26 +114,6 @@ export default function Invite() {
 }
 
 const styles = StyleSheet.create({
-  confirmBox: {
-    alignItems: "center",
-    gap: 10,
-  },
-  confirmText: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-  },
-  confirmButton: {
-    backgroundColor: "#f4a261",
-    borderRadius: 24,
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-  },
-  confirmButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
-  },
   shareBox: {
     alignItems: "center",
     gap: 12,
