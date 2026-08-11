@@ -162,7 +162,7 @@ export default function Home() {
   return (
     <View style={commonStyles.screenContainer}>
       <Pressable
-        onPress={() => router.push("/record")}
+        onPress={() => router.push(`/record?isSloppy=${homeState.saborine.isSloppy ? "1" : "0"}`)}
         accessibilityRole="button"
         accessibilityLabel="サボリーヌになにかしてくれた?ときく"
       >
@@ -194,7 +194,10 @@ export default function Home() {
 
       {errorMessage ? <Text style={commonStyles.error}>{errorMessage}</Text> : null}
 
-      <Pressable style={styles.recordButton} onPress={() => router.push("/record")}>
+      <Pressable
+        style={styles.recordButton}
+        onPress={() => router.push(`/record?isSloppy=${homeState.saborine.isSloppy ? "1" : "0"}`)}
+      >
         <Text style={styles.recordButtonText}>きろくする</Text>
       </Pressable>
 

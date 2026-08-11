@@ -1,27 +1,42 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { ApiError } from "../src/api/client";
 import { fetchChorePresets, recordChore } from "../src/api/home";
 import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
 import { Saborine } from "../src/components/saborine/Saborine";
 import { markFirstRecordedAt } from "../src/invite/promptStorage";
+import { buildRecordReactionMessage } from "../src/record/reaction";
 import { commonStyles } from "../src/styles/common";
 
 const FREE_TEXT_MAX_LENGTH = 30;
+const REACTION_DURATION_MS = 1_400;
 
 // 記録シート。ホームの記録ボタンと、サボリーヌ自身をタップしたときの両方から開く
 // (docs/mvp.md:53)。プリセット6種は最近使った順に並び、1タップで記録が完了する。
-// 写真・詳細・相手の承認は求めない。
+// 写真・詳細・相手の承認は求めない。記録が成立すると、閉じる前によろこぶ姿とひとことを
+// 短く見せる。
 export default function Record() {
   const router = useRouter();
   const identity = useIdentity();
+  const { isSloppy } = useLocalSearchParams<{ isSloppy?: string }>();
+  const wasSloppy = isSloppy === "1";
   const [presets, setPresets] = useState<string[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [freeText, setFreeText] = useState("");
   const [recordingChoreType, setRecordingChoreType] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [reactionMessage, setReactionMessage] = useState<string | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimer.current) {
+        clearTimeout(closeTimer.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!identity) {
@@ -58,15 +73,30 @@ export default function Record() {
       setRecordingChoreType(null);
       return;
     }
-    try {
-      await markFirstRecordedAt();
-    } catch (error) {
+    markFirstRecordedAt().catch((error: unknown) => {
       console.error("初めての記録の日時を残せませんでした", error);
+    });
+    setReactionMessage(buildRecordReactionMessage({ choreType: trimmed, wasSloppy }));
+    closeTimer.current = setTimeout(() => router.back(), REACTION_DURATION_MS);
+  };
+
+  const closeNow = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
     }
     router.back();
   };
 
   const trimmedFreeText = freeText.trim();
+
+  if (reactionMessage) {
+    return (
+      <Pressable style={commonStyles.screenContainer} onPress={closeNow}>
+        <Saborine pose="happy" size={110} />
+        <Text style={styles.reactionText}>{reactionMessage}</Text>
+      </Pressable>
+    );
+  }
 
   return (
     <View style={commonStyles.screenContainer}>
@@ -128,6 +158,11 @@ export default function Record() {
 }
 
 const styles = StyleSheet.create({
+  reactionText: {
+    fontSize: 16,
+    color: "#6b5237",
+    textAlign: "center",
+  },
   presetGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
