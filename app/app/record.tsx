@@ -6,6 +6,7 @@ import { fetchChorePresets, recordChore } from "../src/api/home";
 import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
 import { Saborine } from "../src/components/saborine/Saborine";
+import { markFirstRecordedAt } from "../src/invite/promptStorage";
 import { commonStyles } from "../src/styles/common";
 
 const FREE_TEXT_MAX_LENGTH = 30;
@@ -52,6 +53,7 @@ export default function Record() {
     setErrorMessage(null);
     try {
       await recordChore(identity, trimmed);
+      await markFirstRecordedAt();
       router.back();
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "きろくに しっぱいしました");
