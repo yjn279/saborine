@@ -35,6 +35,7 @@ export default function Home() {
   const eatingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pushRestoreStarted = useRef(false);
   const autoInvitePromptShown = useRef(false);
+  const isFocusedRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -82,17 +83,16 @@ export default function Home() {
     }
   }, []);
 
-  // 手紙の自動提示を判断する。ホームに入った瞬間の取り直し(下のuseFocusEffect)からだけ
-  // 呼び、20秒ごとの取り直しからは呼ばない。1回のアプリ起動につき最大1回だけ判断し、
-  // 出すと決まった段階は端末に残してから手紙へ進む(戻ってきたときに同じ段階が二度
-  // 出ないようにするため)。状態がまだ取れていない・取得に失敗したときは何もしない。
+  // 手紙の自動提示を判断する。1回のアプリ起動につき最大1回だけ判断し、出すと決まった
+  // 段階を端末に残してから手紙へ進む。状態がまだ取れていない・取得に失敗したとき、
+  // および判断の途中で画面から離れたときは何もしない。
   const promptInviteIfNeeded = useCallback(
     async (state: HomeState | null) => {
       if (!state || autoInvitePromptShown.current) {
         return;
       }
       const [firstRecordedAt, stage] = await Promise.all([getFirstRecordedAt(), getInvitePromptStage()]);
-      if (autoInvitePromptShown.current) {
+      if (autoInvitePromptShown.current || !isFocusedRef.current) {
         return;
       }
       const decision = decideInvitePrompt({ isPaired: state.isPaired, firstRecordedAt, stage, now: new Date() });
@@ -101,21 +101,32 @@ export default function Home() {
       }
       autoInvitePromptShown.current = true;
       await setInvitePromptStage(decision);
+      if (!isFocusedRef.current) {
+        return;
+      }
       router.push("/invite");
     },
     [router],
   );
 
-  // 20秒ごと、および画面に戻ったときに状態を取り直す。手紙の自動提示は、画面に
-  // 戻った瞬間の取り直しにだけ乗せる。
+  // 画面に戻ったときと20秒ごとに状態を取り直す。手紙の自動提示は、画面に戻った
+  // ときの取り直し後に判断する。
   useFocusEffect(
     useCallback(() => {
       if (!identity) {
         return;
       }
-      refresh(identity).then((state) => promptInviteIfNeeded(state));
+      isFocusedRef.current = true;
+      refresh(identity)
+        .then((state) => promptInviteIfNeeded(state))
+        .catch((error: unknown) => {
+          console.error("手紙の自動提示の判断に失敗しました", error);
+        });
       const interval = setInterval(() => refresh(identity), POLL_INTERVAL_MS);
-      return () => clearInterval(interval);
+      return () => {
+        isFocusedRef.current = false;
+        clearInterval(interval);
+      };
     }, [identity, refresh, promptInviteIfNeeded]),
   );
 

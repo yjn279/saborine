@@ -21,6 +21,7 @@ import { clearIdentity } from "../src/auth/identity";
 import { useIdentity } from "../src/auth/useIdentity";
 import { CloseButton } from "../src/components/CloseButton";
 import { InAppBanner } from "../src/components/InAppBanner";
+import { clearInvitePromptState } from "../src/invite/promptStorage";
 import { subscribeToPush, unsubscribeFromPush } from "../src/push/subscribe";
 import { commonStyles } from "../src/styles/common";
 
@@ -139,6 +140,7 @@ export default function Settings() {
     try {
       await unpair(identity);
       await clearIdentity();
+      await clearInvitePromptState();
       router.replace("/onboarding");
     } catch (error) {
       setActionError(error instanceof ApiError ? error.message : "ペアかいじょに しっぱいしました");
@@ -155,6 +157,7 @@ export default function Settings() {
     try {
       await deleteAccount(identity);
       await clearIdentity();
+      await clearInvitePromptState();
       router.replace("/onboarding");
     } catch (error) {
       setActionError(error instanceof ApiError ? error.message : "さくじょに しっぱいしました");

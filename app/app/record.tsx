@@ -53,12 +53,17 @@ export default function Record() {
     setErrorMessage(null);
     try {
       await recordChore(identity, trimmed);
-      await markFirstRecordedAt();
-      router.back();
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : "きろくに しっぱいしました");
       setRecordingChoreType(null);
+      return;
     }
+    try {
+      await markFirstRecordedAt();
+    } catch (error) {
+      console.error("初めての記録の日時を残せませんでした", error);
+    }
+    router.back();
   };
 
   const trimmedFreeText = freeText.trim();
