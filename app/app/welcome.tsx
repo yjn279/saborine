@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Saborine } from "../src/components/saborine/Saborine";
 import { commonStyles } from "../src/styles/common";
+import { colors, fontSize, space } from "../src/styles/theme";
 
 // まだ登録していない人が最初に着く紹介画面。SNSから来た人がここを見て、
 // 何のアプリかを「サボリーヌ → ふたりの物語 → 家事」の順に知る。
@@ -11,16 +12,16 @@ export default function Welcome() {
 
   return (
     <View style={commonStyles.screenContainer}>
-      <Saborine pose="happy" />
+      <Saborine pose="happy" size={220} />
       <Text style={commonStyles.screenTitle}>ふたりで、いっぴきの犬を そだてよう</Text>
       <View style={styles.sections}>
-        <Text style={commonStyles.screenSubtitle}>
+        <Text style={styles.paragraph}>
           サボリーヌは、ふたりでひとつのいのちを いっしょに そだてる犬です。ひとりでは かえません。
         </Text>
-        <Text style={commonStyles.screenSubtitle}>
+        <Text style={styles.paragraph}>
           家事をすると、相手からの「ありがとう」がごはんになって、サボリーヌが そだちます。
         </Text>
-        <Text style={commonStyles.screenSubtitle}>
+        <Text style={styles.paragraph}>
           ふたりがサボると、サボリーヌは とたんに だらしなくなります。それも、あいきょうのうち。
         </Text>
       </View>
@@ -41,15 +42,22 @@ export default function Welcome() {
 
 const styles = StyleSheet.create({
   sections: {
-    gap: 8,
-    maxWidth: 320,
+    gap: space.md,
+    maxWidth: 360,
+  },
+  // 本文は左揃えにする。日本語を中央揃えで3行に折り返すと、行ごとに
+  // 開始位置がずれて読みにくく、作りが粗く見える。
+  paragraph: {
+    fontSize: fontSize.body,
+    color: colors.textMuted,
+    lineHeight: fontSize.body * 1.7,
   },
   legalLinks: {
     flexDirection: "row",
-    gap: 16,
+    gap: space.lg,
   },
   legalLinkText: {
-    color: "#a0522d",
-    fontSize: 14,
+    color: colors.textFaint,
+    fontSize: fontSize.caption,
   },
 });
