@@ -1,10 +1,12 @@
 import { getStorageItem, setStorageItem } from "../storage";
+import type { InvitePromptStage } from "./prompt";
 
-// 初めて記録した日時を端末に残す。記録シート(app/app/record.tsx)が記録の成立直後に
-// 書き、ホーム(app/app/index.tsx)がそれを「初めてかどうか」と「3日経過したか」の
-// 起点として読む(app/src/invite/prompt.ts)。読み書きをここに集め、保存の名前が
-// 記録シートとホームに散らばらないようにする。既存の再提示回数
-// (saborine.inviteReminderCount, app/app/invite.tsx)とは別の名前を使う。
+// 手紙の自動提示(app/src/invite/prompt.ts)が端末に残す値をここに集める。読み書きの
+// 場所を1つにまとめることで、保存の名前が記録シート・ホームに散らばらないようにする。
+// 既存の再提示回数(saborine.inviteReminderCount, app/app/invite.tsx)とは別の名前を使う。
+
+// 初めて記録した日時。記録シート(app/app/record.tsx)が記録の成立直後に書き、
+// ホーム(app/app/index.tsx)がそれを「初めてかどうか」と「3日経過したか」の起点として読む。
 const FIRST_RECORDED_AT_KEY = "saborine.inviteFirstRecordedAt";
 
 export async function getFirstRecordedAt(): Promise<Date | null> {
@@ -23,4 +25,16 @@ export async function markFirstRecordedAt(now: Date = new Date()): Promise<void>
     return;
   }
   await setStorageItem(FIRST_RECORDED_AT_KEY, now.toISOString());
+}
+
+// 自動提示のうち、これまでにどこまで出したか。ホーム(app/app/index.tsx)だけが読み書きする。
+const PROMPT_STAGE_KEY = "saborine.invitePromptStage";
+
+export async function getInvitePromptStage(): Promise<InvitePromptStage> {
+  const raw = await getStorageItem(PROMPT_STAGE_KEY);
+  return raw === "first" || raw === "second" ? raw : "none";
+}
+
+export async function setInvitePromptStage(stage: InvitePromptStage): Promise<void> {
+  await setStorageItem(PROMPT_STAGE_KEY, stage);
 }
