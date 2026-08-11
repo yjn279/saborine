@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createPushRestorer, type RestorePushDeps } from "../src/push/restore";
+import { createPushRestorer, shouldShowPushBanner, type RestorePushDeps } from "../src/push/restore";
 
 function createDeps(overrides: Partial<RestorePushDeps> = {}): RestorePushDeps & {
   subscribeCalls: number;
@@ -120,5 +120,20 @@ describe("購読を作り直すかどうかの判断(createPushRestorer)", () =>
 
     await expect(restore()).rejects.toThrow("設定の取得に失敗しました");
     expect(deps.subscribeCalls).toBe(0);
+  });
+});
+
+describe("案内バナーを出すかどうかの判断(shouldShowPushBanner)", () => {
+  it("対応していない結果では、バナーを出す", () => {
+    expect(shouldShowPushBanner("unsupported")).toBe(true);
+  });
+
+  it("購読できなかった結果では、バナーを出さない", () => {
+    expect(shouldShowPushBanner("failed")).toBe(false);
+  });
+
+  it("何もしなかった結果、購読した結果では、バナーを出さない", () => {
+    expect(shouldShowPushBanner("skipped")).toBe(false);
+    expect(shouldShowPushBanner("subscribed")).toBe(false);
   });
 });

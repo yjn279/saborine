@@ -42,3 +42,10 @@ export function createPushRestorer(deps: RestorePushDeps): RestorePush {
     return (await deps.subscribe()) ? "subscribed" : "failed";
   };
 }
+
+// 判断の結果のうち、案内バナーを出すべきものだけをtrueで返す。バナーの文言(InAppBanner)は
+// 「この環境では対応していない」ことを述べるものなので、unsupported以外で出すと、
+// 許可を拒んだ・登録に失敗しただけの人に事実と違う原因を伝えることになる。
+export function shouldShowPushBanner(result: RestorePushResult): boolean {
+  return result === "unsupported";
+}

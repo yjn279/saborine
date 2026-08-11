@@ -13,7 +13,7 @@ import { ThanksButton } from "../src/components/ThanksButton";
 import { NudgeBounce } from "../src/components/saborine/NudgeBounce";
 import { Saborine } from "../src/components/saborine/Saborine";
 import type { SaborinePose } from "../src/components/saborine/types";
-import { createPushRestorer } from "../src/push/restore";
+import { createPushRestorer, shouldShowPushBanner } from "../src/push/restore";
 import { hasPushSubscription, isPushSupported, subscribeToPush } from "../src/push/subscribe";
 import { commonStyles } from "../src/styles/common";
 
@@ -56,8 +56,10 @@ export default function Home() {
       subscribe: () => subscribeToPush(identity).then((result) => result.subscribed),
     })()
       .then((result) => {
-        if (result === "unsupported" || result === "failed") {
+        if (shouldShowPushBanner(result)) {
           setPushBannerVisible(true);
+        } else if (result === "failed") {
+          console.error("お知らせの購読を作れませんでした");
         }
       })
       .catch((error: unknown) => {
