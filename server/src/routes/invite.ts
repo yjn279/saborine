@@ -25,7 +25,7 @@ export function createInviteRoutes() {
     return c.json({
       body: LETTER_LINES,
       token: String(token),
-      link: `/join/${String(token)}`,
+      link: `/join?t=${String(token)}`,
     });
   });
 

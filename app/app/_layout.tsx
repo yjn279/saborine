@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { colors } from "../src/styles/theme";
 import { loadIdentity } from "../src/auth/identity";
-import { isGuestOnlyPath, isPublicPath, JOIN_PATH_PREFIX, WELCOME_PATH } from "../src/auth/routes";
+import { isGuestOnlyPath, isPublicPath, JOIN_PATH, WELCOME_PATH } from "../src/auth/routes";
 
 // 起動のたびに登録済みかどうかを確かめる。身分証がなければ、身分証なしで開ける道
 // (app/src/auth/routes.ts の一覧)以外はすべて紹介ページ(/welcome)へ差し替える。
 // 身分証があるのに紹介ページ・はじめかた画面を開いたときは、ホームへ呼び戻す。
-// 手紙のリンク(/join/:token)は、受け取った側がまだ未登録のまま開くため、
-// この確認から除外する(app/app/join/[token].tsx)。
+// 手紙のリンク(/join?t=<合言葉>)は、受け取った側がまだ未登録のまま開くため、
+// この確認から除外する(app/app/join.tsx)。
 export default function RootLayout() {
   const router = useRouter();
   const pathname = usePathname();
@@ -16,7 +16,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     let active = true;
-    if (pathname.startsWith(JOIN_PATH_PREFIX)) {
+    if (pathname === JOIN_PATH) {
       setChecked(true);
       return;
     }

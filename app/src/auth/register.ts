@@ -1,6 +1,6 @@
 import { createIdentity, saveIdentity, type Identity } from "./identity";
 
-// 新規登録(onboarding.tsx)と招待受諾(join/[token].tsx)の両方が使う、身分証の
+// 新規登録(onboarding.tsx)と招待受諾(join.tsx)の両方が使う、身分証の
 // 作成からサーバーへの登録・端末保存までの手順。サーバー側の登録・受諾は1回だけ
 // 行う。その呼び出しが成功したあとに端末保存だけが失敗した場合、サーバー側の状態は
 // 既に確定しているため、サーバーへ再度リクエストを送らずに保存だけをやり直せる
