@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ApiError } from "../../src/api/client";
-import { fetchHomeState, sendThanks, type HomeState } from "../../src/api/home";
-import { acceptInvite, fetchInvitePreview, type InvitePreview } from "../../src/api/invite";
-import { loadIdentity, type Identity } from "../../src/auth/identity";
-import { registerIdentity, retrySaveIdentity, type IdentityRegistrationResult } from "../../src/auth/register";
-import { decideTodayEventView, findPartnerEvent } from "../../src/home/todayEvents";
-import { LetterCard } from "../../src/components/LetterCard";
-import { Saborine } from "../../src/components/saborine/Saborine";
-import { ThanksButton } from "../../src/components/ThanksButton";
-import { commonStyles } from "../../src/styles/common";
+import { ApiError } from "../src/api/client";
+import { fetchHomeState, sendThanks, type HomeState } from "../src/api/home";
+import { acceptInvite, fetchInvitePreview, type InvitePreview } from "../src/api/invite";
+import { loadIdentity, type Identity } from "../src/auth/identity";
+import { registerIdentity, retrySaveIdentity, type IdentityRegistrationResult } from "../src/auth/register";
+import { decideTodayEventView, findPartnerEvent } from "../src/home/todayEvents";
+import { LetterCard } from "../src/components/LetterCard";
+import { Saborine } from "../src/components/saborine/Saborine";
+import { ThanksButton } from "../src/components/ThanksButton";
+import { commonStyles } from "../src/styles/common";
 
 const DISPLAY_NAME_MAX_LENGTH = 30;
 
@@ -20,7 +20,7 @@ const DISPLAY_NAME_MAX_LENGTH = 30;
 // 登録フォームを出さない。
 export default function Join() {
   const router = useRouter();
-  const { token } = useLocalSearchParams<{ token: string }>();
+  const { t: token } = useLocalSearchParams<{ t: string }>();
 
   const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);

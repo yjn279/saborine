@@ -27,7 +27,9 @@ describe("手紙", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.body).toEqual(LETTER_LINES);
-    expect(typeof body.link).toBe("string");
+    // リンクは、書き出しでそのまま1枚のファイルになる形にする。合言葉をパスの
+    // 一部にすると、合言葉ごとのファイルが存在せず、受け取った人が404を受ける。
+    expect(body.link).toBe(`/join?t=${String(body.token)}`);
     expect(typeof body.token).toBe("string");
     // 「相手が開いたか」「受諾したか」を示す途中状態を一切含まない。
     expect(body).not.toHaveProperty("opened");

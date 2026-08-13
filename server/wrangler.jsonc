@@ -10,10 +10,6 @@
   // ファイルがあればそれを返し、無ければWorkerが処理する(/api/* はここに来る)。
   "assets": {
     "directory": "../app/dist",
-    // Workerからも配れるようにする。招待リンク(/join/<合言葉>)は、書き出しでは
-    // join/[token].html という1枚になるため、パスが一致せず配られない。
-    // src/index.ts がこの入口を使って、その1枚を返す。
-    "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none"
   },
